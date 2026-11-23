@@ -25,3 +25,34 @@ replay_pid*
 
 # Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
 .kotlin/
+
+# 构建与缓存
+**/build/
+.gradle/
+.kotlin/
+.cxx/
+.externalNativeBuild/
+
+# 本地配置
+local.properties
+
+# IDE
+.idea/
+*.iml
+captures/
+
+# 产物与日志
+*.apk
+*.aab
+*.log
+
+# 签名密钥（安全敏感）
+*.jks
+*.keystore
+key.properties
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+cinewall.properties

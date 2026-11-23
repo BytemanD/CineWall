@@ -1,0 +1,24 @@
+// 本地构建加速脚本（仅开发机使用，不提交到项目）
+// 通过 --init-script init-mirrors.gradle 启用，使用国内镜像替换 Google/Maven 中央仓库
+settingsEvaluated { settings ->
+    settings.pluginManagement {
+        repositories {
+            maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+            maven { url 'https://maven.aliyun.com/repository/google' }
+            maven { url 'https://maven.aliyun.com/repository/public' }
+            maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
+            gradlePluginPortal()
+            google()
+            mavenCentral()
+        }
+    }
+    settings.dependencyResolutionManagement {
+        repositories {
+            maven { url 'https://maven.aliyun.com/repository/google' }
+            maven { url 'https://maven.aliyun.com/repository/public' }
+            maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
+            google()
+            mavenCentral()
+        }
+    }
+}

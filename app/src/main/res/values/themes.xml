@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 使用平台基础主题（Leanback 主题已从平台移除，改用 AppCompat 兼容主题） -->
+    <style name="Theme.CineWall" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/color_background</item>
+        <item name="android:colorPrimary">@color/color_primary</item>
+        <item name="android:colorAccent">@color/color_secondary</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowAllowEnterTransitionOverlap">true</item>
+    </style>
+
+    <style name="Theme.CineWall.Player" parent="Theme.CineWall">
+        <!-- 播放器强制纯黑底，避免主题背景在视频周围露出白边/彩色边 -->
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsTranslucent">false</item>
+    </style>
+</resources>
