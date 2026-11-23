@@ -29,6 +29,7 @@ import androidx.tv.material3.rememberCarouselState
 import coil.compose.AsyncImage
 import com.cinewall.app.model.MediaItem
 import com.cinewall.app.model.MediaType
+import com.cinewall.app.ui.theme.RatingGold
 
 /** 首页 Hero 轮播：使用 Compose for TV 官方 Carousel */
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -86,22 +87,22 @@ private fun HeroPage(
                 )
             )
         )
-        Box(
-            modifier = Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(
-                    listOf(surfaceColor.copy(alpha = 0.9f), Color.Transparent)
-                )
-            )
-        )
+//        Box(
+//            modifier = Modifier.fillMaxSize().background(
+//                Brush.horizontalGradient(
+//                    listOf(surfaceColor.copy(alpha = 0.9f), Color.Transparent)
+//                )
+//            )
+//        )
 
         Column(
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 56.dp, bottom = 48.dp, end = 64.dp)
         ) {
             // 主色短横：TV 首页常见的强调线，强化当前配色存在感
-            Box(
-                Modifier.width(72.dp).height(6.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp))
-            )
+//            Box(
+//                Modifier.width(72.dp).height(6.dp)
+//                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp))
+//            )
             Spacer(Modifier.height(12.dp))
             Text(
                 text = item.displayTitle,
@@ -113,7 +114,7 @@ private fun HeroPage(
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (item.voteAverage > 0) {
-                    Text("★ ${"%.1f".format(item.voteAverage)}", color = MaterialTheme.colorScheme.primary)
+                    Text("★ ${"%.1f".format(item.voteAverage)}", color = RatingGold)
                 }
                 if (item.year > 0) {
                     Text("·", color = faintText)

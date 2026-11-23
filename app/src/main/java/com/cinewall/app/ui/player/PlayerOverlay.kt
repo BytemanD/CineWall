@@ -2,12 +2,15 @@
 
 package com.cinewall.app.ui.player
 
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +30,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,13 +60,22 @@ import androidx.tv.material3.IconButton
 import androidx.tv.material3.IconButtonDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Tab
+import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
+import com.cinewall.app.model.LONG_PRESS_SPEED_OPTIONS
 import com.cinewall.app.model.PlaybackSettings
 import com.cinewall.app.ui.components.tvTouchClick
 import com.cinewall.app.ui.theme.onColor
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+/** 播放器里统一使用的倍速档位和画面比例档位。 */
+val PLAYBACK_SPEEDS = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f)
+val SCALE_MODES = ScaleMode.entries
+
+/** 剧集选择器中的一集。 */
+data class EpisodeOption(val id: String, val label: String, val current: Boolean)
 
 /**
  * 全屏手势层：
@@ -69,13 +84,94 @@ import kotlin.math.roundToInt
  * - 单击显示/隐藏控制条，双击中间暂停、双击左右 ±步长
  * - 遥控器菜单键打开配置面板
  */
+/**
+ * 遥控器按键处理：单独放在控制条下层，避免顶层触摸层抢走按钮焦点。
+ */
+@Composable
+fun PlayerKeyHandler(
+    enabled: Boolean,
+    playbackKeysEnabled: Boolean,
+    onDoubleTap: (Float) -> Unit,
+    onMenu: () -> Unit,
+    menuEnabled: Boolean = true,
+    onInteraction: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val currentDoubleTap by rememberUpdatedState(onDoubleTap)
+    val currentMenu by rememberUpdatedState(onMenu)
+    val currentInteraction by rememberUpdatedState(onInteraction)
+
+    Box(
+        modifier = modifier.fillMaxSize().focusable().onKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+            val keyCode = event.key.keyCode.toInt()
+            // 菜单键无论面板是否打开都要响应：打开 / 关闭面板。
+            if (menuEnabled && (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_INFO)) {
+                currentMenu()
+                currentInteraction()
+                return@onKeyEvent true
+            }
+            if (!enabled) {
+                // 面板打开期间，其它遥控器按键视为“有操作”，用于重置自动关闭计时。
+                currentInteraction()
+                return@onKeyEvent false
+            }
+            when (keyCode) {
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                    currentDoubleTap(0.5f)
+                    true
+                }
+                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                    currentDoubleTap(0.9f)
+                    true
+                }
+                KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                    currentDoubleTap(0.1f)
+                    true
+                }
+                // 控制条显示时不能抢 DPAD，否则焦点无法移动到播放按钮/快捷按钮。
+                KeyEvent.KEYCODE_DPAD_CENTER -> {
+                    if (playbackKeysEnabled) {
+                        currentDoubleTap(0.5f)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (playbackKeysEnabled) {
+                        currentDoubleTap(0.9f)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (playbackKeysEnabled) {
+                        currentDoubleTap(0.1f)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                else -> false
+            }
+        }
+    )
+}
+
+/**
+ * 全屏触摸手势层：放在控制条之上，控制条显隐都不影响长按 / 亮度 / 音量 / 点按 / 拖动。
+ * 只避开顶部标题区和底部控制区，避免挡住返回、设置、进度条等按钮。
+ */
 @Composable
 fun PlayerGestures(
     enabled: Boolean,
     seekRangeMs: Long,
     onTap: () -> Unit,
     onDoubleTap: (Float) -> Unit,
-    onMenu: () -> Unit,
+    onLongPressStart: () -> Unit,
+    onLongPressEnd: () -> Unit,
     onBrightnessDelta: (Float) -> Unit,
     onVolumeDelta: (Float) -> Unit,
     onSeekStart: () -> Unit,
@@ -85,54 +181,52 @@ fun PlayerGestures(
 ) {
     val currentTap by rememberUpdatedState(onTap)
     val currentDoubleTap by rememberUpdatedState(onDoubleTap)
-    val currentMenu by rememberUpdatedState(onMenu)
+    val currentLongPressStart by rememberUpdatedState(onLongPressStart)
+    val currentLongPressEnd by rememberUpdatedState(onLongPressEnd)
     val currentBrightness by rememberUpdatedState(onBrightnessDelta)
     val currentVolume by rememberUpdatedState(onVolumeDelta)
     val currentSeekStart by rememberUpdatedState(onSeekStart)
     val currentSeekPreview by rememberUpdatedState(onSeekPreview)
     val currentSeekEnd by rememberUpdatedState(onSeekEnd)
     val currentSeekRange by rememberUpdatedState(seekRangeMs)
+    val longPressHandler = remember { Handler(Looper.getMainLooper()) }
 
+    // 手势层只覆盖中间视频区域，顶部标题和底部控制条完全不被遮挡，
+    // 这样按钮、进度条既能触摸也能用遥控器聚焦。
     Box(
-        modifier = modifier.fillMaxSize().focusable().onKeyEvent { event ->
-            if (!enabled || event.type != KeyEventType.KeyDown) return@onKeyEvent false
-            when (event.key.keyCode.toInt()) {
-                KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> {
-                    currentMenu()
-                    true
+        modifier.fillMaxSize()
+            .padding(top = 120.dp, bottom = 240.dp)
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                val slop = viewConfiguration.touchSlop
+                var lastTapTime = 0L
+                var lastTapPos = Offset.Zero
+
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val pointerId = down.id
+            val start = down.position
+            var last = start
+            // 0=未决定 1=忽略(长按) 2=横向拖动(seek) 3=左侧亮度 4=右侧音量
+            var mode = 0
+            var longPressTriggered = false
+            var seekAccum = 0f
+            val leftEdge = size.width * 0.32f
+            val rightEdge = size.width * 0.68f
+            val totalMs = currentSeekRange.takeIf { it > 0 } ?: 60_000L
+
+            // 按住不动 500ms 触发临时倍速；一旦拖动就取消。
+            // awaitEachGesture 是受限协程作用域，不能用 launch，因此用 Handler。
+            val longPressRunnable = Runnable {
+                if (mode == 0) {
+                    longPressTriggered = true
+                    mode = 1
+                    currentLongPressStart()
                 }
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                    currentDoubleTap(0.5f)
-                    true
-                }
-                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    currentDoubleTap(0.9f)
-                    true
-                }
-                KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    currentDoubleTap(0.1f)
-                    true
-                }
-                else -> false
             }
-        }.pointerInput(enabled) {
-            if (!enabled) return@pointerInput
-            val slop = viewConfiguration.touchSlop
-            var lastTapTime = 0L
-            var lastTapPos = Offset.Zero
+            longPressHandler.postDelayed(longPressRunnable, 500L)
 
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                val pointerId = down.id
-                val start = down.position
-                var last = start
-                // 0=未决定 1=忽略 2=横向拖动(seek) 3=左侧亮度 4=右侧音量
-                var mode = 0
-                var seekAccum = 0f
-                val leftEdge = size.width * 0.32f
-                val rightEdge = size.width * 0.68f
-                val totalMs = currentSeekRange.takeIf { it > 0 } ?: 60_000L
-
+            try {
                 while (true) {
                     val event = awaitPointerEvent()
                     val change = event.changes.firstOrNull { it.id == pointerId } ?: break
@@ -141,6 +235,7 @@ fun PlayerGestures(
                     val dyTotal = pos.y - start.y
 
                     if (mode == 0 && (abs(dxTotal) > slop || abs(dyTotal) > slop)) {
+                        longPressHandler.removeCallbacks(longPressRunnable)
                         mode = when {
                             abs(dxTotal) >= abs(dyTotal) -> 2
                             start.x < leftEdge -> 3
@@ -163,7 +258,12 @@ fun PlayerGestures(
                     change.consume()
 
                     if (!change.pressed) {
+                        longPressHandler.removeCallbacks(longPressRunnable)
                         if (mode == 2) currentSeekEnd()
+                        if (longPressTriggered) {
+                            currentLongPressEnd()
+                            break
+                        }
                         val moved = abs(dxTotal) > slop || abs(dyTotal) > slop
                         if (!moved) {
                             val now = System.currentTimeMillis()
@@ -179,9 +279,50 @@ fun PlayerGestures(
                         break
                     }
                 }
+            } finally {
+                longPressHandler.removeCallbacks(longPressRunnable)
             }
         }
-    )
+    })
+}
+
+/** 亮度 / 音量调节类型。 */
+enum class AdjustmentKind { BRIGHTNESS, VOLUME }
+
+/** 当前正在调节的项目与档位（0f ~ 1f）。 */
+data class AdjustmentInfo(val kind: AdjustmentKind, val level: Float)
+
+/** 屏幕中央的调节提示：只用图标 + 细小进度条，不显示文字。 */
+@Composable
+fun AdjustmentHud(info: AdjustmentInfo?, modifier: Modifier = Modifier) {
+    if (info == null) return
+    val icon = if (info.kind == AdjustmentKind.BRIGHTNESS) {
+        Icons.Filled.WbSunny
+    } else {
+        Icons.Filled.VolumeUp
+    }
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.clip(RoundedCornerShape(24.dp))
+                .background(Color.Black.copy(alpha = 0.62f))
+                .padding(horizontal = 24.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = Color.White)
+            Box(
+                Modifier.width(120.dp).height(6.dp).clip(RoundedCornerShape(3.dp))
+                    .background(Color.White.copy(alpha = 0.25f))
+            ) {
+                Box(
+                    Modifier.fillMaxHeight()
+                        .fillMaxWidth(info.level.coerceIn(0f, 1f))
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.White)
+                )
+            }
+        }
+    }
 }
 
 /** 半透明玻璃按钮，用于面板选项。 */
@@ -209,6 +350,29 @@ fun GlassButton(
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+    }
+}
+
+/** 进度条下方的透明快捷按钮，平时不抢画面，聚焦时才高亮。 */
+@Composable
+private fun TransparentQuickButton(label: String, onClick: () -> Unit) {
+    val primary = MaterialTheme.colorScheme.primary
+    Button(
+        onClick = onClick,
+        modifier = Modifier.tvTouchClick(onClick),
+        shape = ButtonDefaults.shape(shape = RoundedCornerShape(14.dp)),
+        colors = ButtonDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = Color.White.copy(alpha = 0.82f),
+            focusedContainerColor = primary.copy(alpha = 0.28f),
+            focusedContentColor = Color.White,
+            pressedContainerColor = primary.copy(alpha = 0.38f),
+            pressedContentColor = Color.White
+        ),
+        glow = ButtonDefaults.glow(focusedGlow = Glow(primary.copy(alpha = 0.25f), 8.dp)),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge, color = Color.White)
     }
 }
 
@@ -258,9 +422,11 @@ fun SeekHud(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun PlayerControls(
     title: String,
+    fileName: String,
     position: Long,
     duration: Long,
     isPlaying: Boolean,
+    speed: Float,
     scaleMode: ScaleMode,
     brightness: Float,
     volume: Float,
@@ -270,7 +436,10 @@ fun PlayerControls(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpenPanel: () -> Unit,
+    onCycleSpeed: () -> Unit,
     onCycleScale: () -> Unit,
+    episodes: List<EpisodeOption>,
+    onOpenEpisodes: () -> Unit,
     onSeekFraction: (Float) -> Unit,
     onKeySeek: (Long) -> Unit,
     modifier: Modifier = Modifier
@@ -288,14 +457,25 @@ fun PlayerControls(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             GlassIconButton(Icons.Filled.ArrowBack, "返回", onBack)
-            Text(
-                title,
-                style = MaterialTheme.typography.titleLarge,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                // 剧集在标题下方显示当前文件名，方便确认具体是哪一集。
+                if (episodes.isNotEmpty() && fileName.isNotBlank()) {
+                    Text(
+                        fileName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.72f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             GlassIconButton(Icons.Filled.Settings, "播放设置", onOpenPanel)
         }
 
@@ -317,11 +497,6 @@ fun PlayerControls(
                     color = Color.White
                 )
                 Spacer(Modifier.width(12.dp))
-                Text(
-                    "亮度 ${(brightness * 100).roundToInt()} · 音量 ${(volume * 100).roundToInt()}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.75f)
-                )
             }
 
             SeekBar(
@@ -340,8 +515,13 @@ fun PlayerControls(
                 GlassButton(if (isPlaying) "❚❚ 暂停" else "▶ 播放", onTogglePlay)
                 GlassButton("⏮ 上一集", onPrevious)
                 GlassButton("⏭ 下一集", onNext)
+                if (episodes.isNotEmpty()) {
+                    GlassButton("剧集", onOpenEpisodes)
+                }
                 Spacer(Modifier.weight(1f))
-                GlassButton("画面：${scaleMode.label}", onCycleScale)
+                // 透明快捷按钮放在同一行右侧：同一个按钮循环切换倍速 / 画面比例。
+                TransparentQuickButton("${speed}x", onCycleSpeed)
+                TransparentQuickButton("${scaleMode.label}", onCycleScale)
             }
         }
 
@@ -353,6 +533,54 @@ fun PlayerControls(
                     .padding(horizontal = 28.dp, vertical = 14.dp)
             ) {
                 Text(toast, style = MaterialTheme.typography.titleLarge, color = Color.White)
+            }
+        }
+    }
+}
+
+/** 剧集列表弹层：点击某一集直接切换播放。 */
+@Composable
+fun EpisodePickerDialog(
+    episodes: List<EpisodeOption>,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier.heightIn(max = 620.dp).width(720.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.82f))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "选择剧集",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    modifier = Modifier.weight(1f)
+                )
+                GlassButton("关闭", onDismiss)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                episodes.forEach { episode ->
+                    GlassButton(
+                        label = episode.label,
+                        onClick = { onSelect(episode.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                        active = episode.current
+                    )
+                }
             }
         }
     }
@@ -409,6 +637,7 @@ fun SettingsPanel(
     brightness: Float,
     volume: Float,
     onClose: () -> Unit,
+    onInteract: () -> Unit,
     onSpeed: (Float) -> Unit,
     onSeekStep: (Int) -> Unit,
     onScaleMode: (ScaleMode) -> Unit,
@@ -419,15 +648,29 @@ fun SettingsPanel(
     onToggleAutoSubtitle: () -> Unit,
     onToggleAutoNext: () -> Unit,
     onToggleRememberSpeed: () -> Unit,
+    onLongPressSpeed: (Float) -> Unit,
+    onToggleShowCurrentTime: () -> Unit,
+    onToggleShowProgressInfo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tabTitles = listOf("播放", "画面声音", "字幕音轨")
+    val tabTitles = listOf("播放", "画面声音", "字幕", "音轨")
     var selectedTab by remember { mutableStateOf(0) }
 
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    // 点击面板左侧（面板外区域）即关闭。
+                    val panelWidth = 460.dp.toPx()
+                    if (offset.x < size.width - panelWidth) onClose()
+                }
+            },
+        contentAlignment = Alignment.CenterEnd
+    ) {
         Column(
             modifier = Modifier.fillMaxHeight().width(460.dp)
-                .background(Color.Black.copy(alpha = 0.94f))
+                .background(Color.Black.copy(alpha = 0.5f))
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -435,10 +678,8 @@ fun SettingsPanel(
                 Text(
                     "播放设置",
                     style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
-                    modifier = Modifier.weight(1f)
+                    color = Color.White
                 )
-                GlassButton("✕ 关闭", onClose)
             }
 
             TabRow(
@@ -449,9 +690,21 @@ fun SettingsPanel(
                 tabTitles.forEachIndexed { index, title ->
                     Tab(
                         selected = index == selectedTab,
-                        onClick = { selectedTab = index },
-                        onFocus = {},
-                        modifier = Modifier.tvTouchClick { selectedTab = index }
+                        onClick = {
+                            onInteract()
+                            selectedTab = index
+                        },
+                        onFocus = { onInteract() },
+                        // 面板是半透明黑背景，未选中 Tab 不能跟随亮色主题的深色 onSurface。
+                        colors = TabDefaults.pillIndicatorTabColors(
+                            contentColor = Color.White,
+                            inactiveContentColor = Color.White.copy(alpha = 0.72f),
+                            focusedContentColor = Color.White
+                        ),
+                        modifier = Modifier.tvTouchClick {
+                            onInteract()
+                            selectedTab = index
+                        }
                     ) {
                         Text(
                             title,
@@ -470,11 +723,16 @@ fun SettingsPanel(
                     0 -> {
                         SectionTitle("播放速度")
                         ChoiceGrid(
-                            listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f).map {
-                                "${it}x" to { onSpeed(it) }
+                            PLAYBACK_SPEEDS.map { "${it}x" to { onSpeed(it) } },
+                            selectedIndex = PLAYBACK_SPEEDS.indexOf(settings.speed)
+                        )
+
+                        SectionTitle("长按临时倍速")
+                        ChoiceGrid(
+                            LONG_PRESS_SPEED_OPTIONS.map { speed ->
+                                "${speed}x" to { onLongPressSpeed(speed) }
                             },
-                            selectedIndex = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f)
-                                .indexOf(settings.speed)
+                            selectedIndex = LONG_PRESS_SPEED_OPTIONS.indexOf(settings.longPressSpeed)
                         )
 
                         SectionTitle("双击快进 / 快退步长")
@@ -487,7 +745,9 @@ fun SettingsPanel(
                         ChoiceGrid(
                             listOf(
                                 "自动下一集：${if (settings.autoNext) "开" else "关"}" to onToggleAutoNext,
-                                "记住速度：${if (settings.rememberSpeed) "开" else "关"}" to onToggleRememberSpeed
+                                "记住速度：${if (settings.rememberSpeed) "开" else "关"}" to onToggleRememberSpeed,
+                                "当前时间：${if (settings.showCurrentTime) "开" else "关"}" to onToggleShowCurrentTime,
+                                "视频进度：${if (settings.showProgressInfo) "开" else "关"}" to onToggleShowProgressInfo
                             ),
                             selectedIndex = -1
                         )
@@ -495,8 +755,8 @@ fun SettingsPanel(
                     1 -> {
                         SectionTitle("画面比例")
                         ChoiceGrid(
-                            ScaleMode.entries.map { it.label to { onScaleMode(it) } },
-                            selectedIndex = ScaleMode.entries.indexOf(ScaleMode.from(settings.scaleMode))
+                            SCALE_MODES.map { it.label to { onScaleMode(it) } },
+                            selectedIndex = SCALE_MODES.indexOf(ScaleMode.from(settings.scaleMode))
                         )
 
                         SectionTitle("亮度")
@@ -507,16 +767,7 @@ fun SettingsPanel(
                     }
                     2 -> {
                         SectionTitle("字幕轨")
-                        ChoiceGrid(
-                            textTracks.map { it.label to { onTextTrack(it) } },
-                            selectedIndex = textTracks.indexOfFirst { it.selected }
-                        )
-
-                        SectionTitle("音轨")
-                        ChoiceGrid(
-                            audioTracks.map { it.label to { onAudioTrack(it) } },
-                            selectedIndex = audioTracks.indexOfFirst { it.selected }
-                        )
+                        TrackOptionList(textTracks, onTextTrack)
 
                         SectionTitle("默认字幕")
                         ChoiceGrid(
@@ -524,7 +775,46 @@ fun SettingsPanel(
                             selectedIndex = -1
                         )
                     }
+                    3 -> {
+                        SectionTitle("音轨")
+                        TrackOptionList(audioTracks, onAudioTrack)
+                    }
                 }
+            }
+        }
+    }
+}
+
+/** 播放画面右上角的状态信息：当前时间和/或视频进度。 */
+@Composable
+fun PlaybackStatusOverlay(
+    currentTime: String,
+    position: Long,
+    duration: Long,
+    showCurrentTime: Boolean,
+    showProgress: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (!showCurrentTime && !showProgress) return
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
+        Column(
+            modifier = Modifier.padding(top = 28.dp, end = 92.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (showCurrentTime) {
+                Text(
+                    currentTime,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+            }
+            if (showProgress) {
+                Text(
+                    "${formatTime(position)} / ${formatTime(duration)}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.88f)
+                )
             }
         }
     }
@@ -542,7 +832,7 @@ private fun SectionTitle(text: String) {
 
 @Composable
 private fun ChoiceGrid(items: List<Pair<String, () -> Unit>>, selectedIndex: Int) {
-    items.chunked(3).forEach { row ->
+    items.chunked(4).forEach { row ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -554,6 +844,59 @@ private fun ChoiceGrid(items: List<Pair<String, () -> Unit>>, selectedIndex: Int
                     active = items.indexOf(item) == selectedIndex,
                     modifier = Modifier.weight(1f)
                 )
+            }
+        }
+    }
+}
+
+/** 字幕 / 音轨用纵向列表展示，选中项高亮并带勾。 */
+@Composable
+private fun TrackOptionList(
+    options: List<TrackOption>,
+    onSelect: (TrackOption) -> Unit
+) {
+    if (options.isEmpty()) {
+        Text(
+            "暂无可选轨道",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.6f)
+        )
+        return
+    }
+    val primary = MaterialTheme.colorScheme.primary
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { option ->
+            val active = option.selected
+            Button(
+                onClick = { onSelect(option) },
+                modifier = Modifier.fillMaxWidth().tvTouchClick { onSelect(option) },
+                shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                colors = ButtonDefaults.colors(
+                    containerColor = if (active) primary else Color.Black.copy(alpha = 0.45f),
+                    contentColor = if (active) onColor(primary) else Color.White,
+                    focusedContainerColor = primary.copy(alpha = 0.88f),
+                    focusedContentColor = onColor(primary),
+                    pressedContainerColor = primary.copy(alpha = 0.72f),
+                    pressedContentColor = onColor(primary)
+                ),
+                glow = ButtonDefaults.glow(focusedGlow = Glow(primary.copy(alpha = 0.45f), 12.dp)),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        option.label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (active) {
+                        Text("✓", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
             }
         }
     }

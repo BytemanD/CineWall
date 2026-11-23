@@ -1,5 +1,6 @@
 package com.cinewall.app.ui.components
 
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.rounded.VideoLibrary
+
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,16 +72,18 @@ fun AppHeader(
 
         TabRow(
             selectedTabIndex = selectedIndex,
-            modifier = Modifier.height(56.dp),
-            contentColor = secondary,
+            modifier = Modifier.height(40.dp),
+
+            contentColor = MaterialTheme.colorScheme.error,
             indicator = { tabPositions, doesTabRowHaveFocus ->
+
                 tabPositions.getOrNull(selectedIndex)?.let { position ->
                     TabRowDefaults.PillIndicator(
                         currentTabPosition = position,
                         doesTabRowHaveFocus = doesTabRowHaveFocus,
                         // 选中项始终强调，即使焦点在别的控件上也不会消失
                         activeColor = primary,
-                        inactiveColor = primary.blend(MaterialTheme.colorScheme.surface, 0.3f)
+                        inactiveColor = primary,
                     )
                 }
             }
@@ -91,9 +96,10 @@ fun AppHeader(
                     colors = TabDefaults.pillIndicatorTabColors(
                         contentColor = secondary,
                         // 选中项仍用主色胶囊上的可读前景色，避免次要色和主色撞色看不清
-                        selectedContentColor = onColor(primary),
+                        selectedContentColor = secondary,
                         focusedContentColor = secondary,
-                        focusedSelectedContentColor = onColor(primary)
+                        focusedSelectedContentColor = onColor(primary),
+                        inactiveContentColor = secondary,
                     ),
                     modifier = Modifier
                         .padding(horizontal = 12.dp)
@@ -111,7 +117,7 @@ fun AppHeader(
                                 modifier = Modifier.size(26.dp)
                             )
                             MainTabs.LIBRARY -> Icon(
-                                painter = painterResource(android.R.drawable.ic_menu_gallery),
+                                imageVector = Icons.Rounded.VideoLibrary,
                                 contentDescription = null,
                                 modifier = Modifier.size(26.dp)
                             )
@@ -136,11 +142,11 @@ fun AppHeader(
         Button(
             onClick = { onNavigate(MainTabs.SETTINGS) },
             modifier = Modifier.tvTouchClick { onNavigate(MainTabs.SETTINGS) },
-            shape = ButtonDefaults.shape(shape = RoundedCornerShape(28.dp)),
+            shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             colors = ButtonDefaults.colors(
                 containerColor = if (settingsSelected) primary else Color.Transparent,
-                contentColor = if (settingsSelected) onColor(primary) else secondary,
+                contentColor = secondary,
                 focusedContainerColor = if (settingsSelected) {
                     primary.blend(Color.White, 0.18f)
                 } else {

@@ -52,6 +52,10 @@ interface MediaRepository {
     fun loadPlaybackSettings(): PlaybackSettings
     fun savePlaybackSettings(settings: PlaybackSettings)
 
+    /** 单个媒体的播放进度（毫秒），0 表示从头播放 */
+    fun loadPlaybackPosition(mediaId: String): Long
+    fun savePlaybackPosition(mediaId: String, positionMs: Long)
+
     /** 扫描所有已选文件夹并入库 */
     suspend fun scanFolders(): ScanResult
     /** 刮削指定项的元数据 */

@@ -1,6 +1,10 @@
 package com.cinewall.app.ui.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.IntOffset
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,7 +42,25 @@ fun CineWallNavHost(repository: MediaRepository) {
         }
     }
 
-    NavHost(navController = navController, startDestination = Routes.HOME) {
+    val pageSlide = tween<IntOffset>(durationMillis = 220)
+    NavHost(
+        navController = navController,
+        startDestination = Routes.HOME,
+        // 前进：新页面从右侧进入，旧页面向左退出。
+        enterTransition = {
+            slideInHorizontally(animationSpec = pageSlide, initialOffsetX = { it })
+        },
+        exitTransition = {
+            slideOutHorizontally(animationSpec = pageSlide, targetOffsetX = { -it })
+        },
+        // 返回：旧页面（如播放器）向右滑出，新页面从左侧进入。
+        popEnterTransition = {
+            slideInHorizontally(animationSpec = pageSlide, initialOffsetX = { -it })
+        },
+        popExitTransition = {
+            slideOutHorizontally(animationSpec = pageSlide, targetOffsetX = { it })
+        }
+    ) {
         composable(Routes.HOME) {
             HomeScreen(
                 repository = repository,

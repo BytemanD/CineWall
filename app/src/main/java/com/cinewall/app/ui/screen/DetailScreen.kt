@@ -48,6 +48,7 @@ import com.cinewall.app.ui.components.PrimaryTvButton
 import com.cinewall.app.ui.components.SecondaryTvButton
 import com.cinewall.app.ui.components.tvTouchClick
 import com.cinewall.app.ui.theme.PosterPlaceholder
+import com.cinewall.app.ui.theme.RatingGold
 import kotlinx.coroutines.launch
 
 @Composable
@@ -218,7 +219,7 @@ private fun DetailHero(
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (item.voteAverage > 0) {
-                        Text("★ ${"%.1f".format(item.voteAverage)}", color = MaterialTheme.colorScheme.primary)
+                        Text("★ ${"%.1f".format(item.voteAverage)}", color = RatingGold)
                     }
                     if (item.year > 0) Text(item.year.toString(), color = mutedText)
                     Text(

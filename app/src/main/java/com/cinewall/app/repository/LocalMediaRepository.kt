@@ -30,6 +30,7 @@ const val KEY_TMDB_LANGUAGE = "tmdb_language"
 const val KEY_THEME_MODE = "theme_mode" // 0 system,1 light,2 dark
 const val KEY_THEME_PALETTE = "theme_palette"
 const val KEY_PLAYBACK_SETTINGS = "playback_settings"
+const val KEY_PLAYBACK_POSITION = "playback_position"
 
 /** 本地实现：Room + SharedPreferences */
 class LocalMediaRepository(private val context: Context, private val scope: CoroutineScope) : MediaRepository {
@@ -119,8 +120,11 @@ class LocalMediaRepository(private val context: Context, private val scope: Coro
         autoNext = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_next", true),
         rememberSpeed = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_remember_speed", true),
         speed = prefs.getFloat("${KEY_PLAYBACK_SETTINGS}_speed", 1.0f),
+        longPressSpeed = prefs.getFloat("${KEY_PLAYBACK_SETTINGS}_long_press_speed", 2.0f),
         seekStepSeconds = prefs.getInt("${KEY_PLAYBACK_SETTINGS}_seek_step", 10),
-        scaleMode = prefs.getString("${KEY_PLAYBACK_SETTINGS}_scale_mode", "FIT") ?: "FIT"
+        scaleMode = prefs.getString("${KEY_PLAYBACK_SETTINGS}_scale_mode", "FIT") ?: "FIT",
+        showCurrentTime = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_show_time", false),
+        showProgressInfo = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_show_progress", false)
     )
 
     override fun savePlaybackSettings(settings: PlaybackSettings) {
@@ -129,9 +133,19 @@ class LocalMediaRepository(private val context: Context, private val scope: Coro
             .putBoolean("${KEY_PLAYBACK_SETTINGS}_next", settings.autoNext)
             .putBoolean("${KEY_PLAYBACK_SETTINGS}_remember_speed", settings.rememberSpeed)
             .putFloat("${KEY_PLAYBACK_SETTINGS}_speed", settings.speed)
+            .putFloat("${KEY_PLAYBACK_SETTINGS}_long_press_speed", settings.longPressSpeed)
             .putInt("${KEY_PLAYBACK_SETTINGS}_seek_step", settings.seekStepSeconds)
             .putString("${KEY_PLAYBACK_SETTINGS}_scale_mode", settings.scaleMode)
+            .putBoolean("${KEY_PLAYBACK_SETTINGS}_show_time", settings.showCurrentTime)
+            .putBoolean("${KEY_PLAYBACK_SETTINGS}_show_progress", settings.showProgressInfo)
             .apply()
+    }
+
+    override fun loadPlaybackPosition(mediaId: String): Long =
+        prefs.getLong("${KEY_PLAYBACK_POSITION}_$mediaId", 0L)
+
+    override fun savePlaybackPosition(mediaId: String, positionMs: Long) {
+        prefs.edit().putLong("${KEY_PLAYBACK_POSITION}_$mediaId", positionMs.coerceAtLeast(0L)).apply()
     }
 
     private fun currentScraper(): MetadataScraper = buildScraper()

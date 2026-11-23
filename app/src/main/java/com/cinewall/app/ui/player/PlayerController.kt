@@ -1,23 +1,25 @@
 package com.cinewall.app.ui.player
 
 import android.content.Context
+import android.graphics.Color
 import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.Format
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.PlaybackParameters
 import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.Tracks
 import com.google.android.exoplayer2.source.TrackGroup
 import com.google.android.exoplayer2.trackselection.TrackSelectionOverride
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
+import com.google.android.exoplayer2.ui.CaptionStyleCompat
 import com.google.android.exoplayer2.ui.PlayerView
 
 /** 画面缩放模式 */
 enum class ScaleMode(val label: String, val value: Int) {
     FIT("适应画面", AspectRatioFrameLayout.RESIZE_MODE_FIT),
     FILL("铺满屏幕", AspectRatioFrameLayout.RESIZE_MODE_FILL),
-    ZOOM("裁剪填充", AspectRatioFrameLayout.RESIZE_MODE_ZOOM),
-    FIXED_WIDTH("固定宽度", AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH),
-    FIXED_HEIGHT("固定高度", AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT);
+    ZOOM("裁剪填充", AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
 
     companion object {
         fun from(value: String?): ScaleMode = entries.find { it.name == value } ?: FIT
@@ -51,6 +53,10 @@ class PlayerController(context: Context) {
     var scaleMode: ScaleMode = ScaleMode.FIT
         private set
 
+    // 用户一旦在面板里手动选过字幕，就不再自动覆盖他的选择。
+    private var textTrackManuallySelected = false
+    private var autoSelectingTextTrack = false
+
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_ENDED && autoNext) onEnded()
@@ -59,16 +65,25 @@ class PlayerController(context: Context) {
         override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
             if (rememberSpeed) onSpeedChanged(playbackParameters.speed)
         }
+
+        override fun onTracksChanged(tracks: Tracks) {
+            if (!textTrackManuallySelected) autoSelectPreferredTextTrack(tracks)
+        }
     }
 
     init {
         player.addListener(listener)
     }
 
-    fun prepare(mediaItem: MediaItem, speed: Float, mode: ScaleMode) {
+    fun prepare(mediaItem: MediaItem, speed: Float, mode: ScaleMode, startPositionMs: Long = 0L) {
         scaleMode = mode
+        textTrackManuallySelected = false
         playerView?.setResizeMode(mode.value)
-        player.setMediaItem(mediaItem)
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .build()
+        player.setMediaItem(mediaItem, startPositionMs.coerceAtLeast(0L))
         player.playbackParameters = PlaybackParameters(speed.coerceIn(0.5f, 3.0f))
         player.prepare()
         player.playWhenReady = true
@@ -79,6 +94,19 @@ class PlayerController(context: Context) {
         view.player = player
         view.useController = false // 使用自定义覆盖层
         view.setResizeMode(scaleMode.value)
+        // PlayerView 默认会把 CaptionStyleCompat.DEFAULT 套到字幕上，
+        // 而这个默认样式的背景是黑色；这里改成透明背景 + 黑色描边，
+        // 字幕既没有黑框，在亮/暗画面上也都看得清。
+        view.subtitleView?.setStyle(
+            CaptionStyleCompat(
+                Color.WHITE,
+                Color.TRANSPARENT,
+                Color.TRANSPARENT,
+                CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                Color.BLACK,
+                null
+            )
+        )
     }
 
     fun release() {
@@ -169,6 +197,7 @@ class PlayerController(context: Context) {
         player.trackSelectionParameters.overrides.values.any { it.type == type }
 
     fun selectTrack(type: Int, option: TrackOption) {
+        if (type == C.TRACK_TYPE_TEXT) textTrackManuallySelected = true
         val builder = player.trackSelectionParameters.buildUpon()
         when (option.key) {
             "off" -> {
@@ -191,5 +220,64 @@ class PlayerController(context: Context) {
     /** 让 ExoPlayer 重新计算轨道（例如外挂字幕加载完成后） */
     fun refreshTracks() {
         player.trackSelectionParameters = player.trackSelectionParameters
+    }
+
+    /**
+     * 自动选字幕轨：简体中文 > 繁体中文 > English > 其他。
+     * 用户在面板里手动选过字幕后，不再自动覆盖。
+     */
+    private fun autoSelectPreferredTextTrack(tracks: Tracks) {
+        if (autoSelectingTextTrack) return
+        autoSelectingTextTrack = true
+        try {
+            var bestGroup: TrackGroup? = null
+            var bestIndex = -1
+            var bestRank = Int.MAX_VALUE
+            tracks.groups.forEach { group ->
+                if (group.type != C.TRACK_TYPE_TEXT) return@forEach
+                for (i in 0 until group.length) {
+                    if (!group.isTrackSupported(i)) continue
+                    val rank = textTrackLanguageRank(group.getTrackFormat(i))
+                    if (rank < bestRank) {
+                        bestRank = rank
+                        bestGroup = group.mediaTrackGroup
+                        bestIndex = i
+                    }
+                }
+            }
+            val group = bestGroup ?: return
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .setOverrideForType(TrackSelectionOverride(group, bestIndex))
+                .build()
+        } finally {
+            autoSelectingTextTrack = false
+        }
+    }
+
+    private fun textTrackLanguageRank(format: Format): Int {
+        val raw = listOfNotNull(
+            format.language?.takeIf { it.isNotBlank() },
+            format.label?.takeIf { it.isNotBlank() }
+        ).joinToString(" ") { it.lowercase() }
+
+        return when {
+            TRADITIONAL_CHINESE.containsMatchIn(raw) -> 1
+            SIMPLIFIED_CHINESE.containsMatchIn(raw) -> 0
+            GENERIC_CHINESE.containsMatchIn(raw) -> 0
+            ENGLISH.containsMatchIn(raw) -> 2
+            else -> 3
+        }
+    }
+
+    companion object {
+        private val TRADITIONAL_CHINESE = Regex(
+            "zh[-_]?(hant|tw|hk|mo)|chi[-_]?t|繁體|繁体|繁中|正體|traditional"
+        )
+        private val SIMPLIFIED_CHINESE = Regex(
+            "zh[-_]?(hans|cn|sg)|chi[-_]?s|简体|简中|simplified"
+        )
+        private val GENERIC_CHINESE = Regex("(^|[^a-z])(zh|zho|chi|chinese)([^a-z]|$)")
+        private val ENGLISH = Regex("(^|[^a-z])(en|eng|english)([^a-z]|$)")
     }
 }

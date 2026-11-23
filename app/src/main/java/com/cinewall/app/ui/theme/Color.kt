@@ -202,4 +202,4 @@ fun Color.blend(target: Color, amount: Float): Color {
 val ImageScrimStart = Color(0x3307080B)
 val ImageScrimEnd = Color(0xFF07080B)
 val PosterPlaceholder = Color(0xFF1E2027)
-val RatingGold = Color(0xFFFFC64D)
+val RatingGold = Color(0xFFF57C00)
