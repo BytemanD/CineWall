@@ -35,7 +35,8 @@ fun MediaShelf(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = title, style = MaterialTheme.typography.headlineSmall)
+            Text(text = title, style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.width(12.dp))
             Text(
                 text = "${items.size}",

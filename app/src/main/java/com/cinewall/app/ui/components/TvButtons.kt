@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Glow
@@ -28,27 +30,32 @@ fun PrimaryTvButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    contentPadding: PaddingValues = TvButtonContentPadding
+    contentPadding: PaddingValues = TvButtonContentPadding,
+    icon: (@Composable () -> Unit)? = null,
+    containerColor: Color = MaterialTheme.colorScheme.primary
 ) {
-    val primary = MaterialTheme.colorScheme.primary
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.tvTouchClick(onClick),
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(28.dp)),
         colors = ButtonDefaults.colors(
-            containerColor = primary,
-            contentColor = onColor(primary),
-            focusedContainerColor = primary.blend(Color.White, 0.18f),
-            focusedContentColor = onColor(primary),
-            pressedContainerColor = primary.blend(Color.Black, 0.16f),
-            pressedContentColor = onColor(primary)
+            containerColor = containerColor ,
+            contentColor = onColor(containerColor),
+            focusedContainerColor = containerColor.blend(Color.White, 0.18f),
+            focusedContentColor = onColor(containerColor),
+            pressedContainerColor = containerColor.blend(Color.Black, 0.16f),
+            pressedContentColor = onColor(containerColor)
         ),
         glow = ButtonDefaults.glow(
-            focusedGlow = Glow(primary.copy(alpha = 0.5f), 16.dp)
+            focusedGlow = Glow(containerColor.copy(alpha = 0.5f), 16.dp)
         ),
         contentPadding = contentPadding
     ) {
+        if (icon != null) {
+            icon()
+            Spacer(Modifier.width(8.dp))
+        }
         Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
     }
 }

@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -341,13 +342,21 @@ fun SettingsScreen(
                             }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TvButton(label = "添加文件夹", primary = true, onClick = { showFolderPicker = true })
-                            TvButton(label = "清空", onClick = {
+                            Spacer(Modifier.weight(1f))
+                            TvButton(label = "文件夹", primary = true, onClick = { showFolderPicker = true },
+                                icon= {
+                                    Icon(
+                                        imageVector = Icons.Filled.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                })
+                            PrimaryTvButton(label = "清空", onClick = {
                                 repository.saveScanFolders(emptyList())
                                 folders = emptyList()
                                 status = "已清空文件夹列表"
-                            })
-                            TvButton(label = "扫描媒体库", primary = true, onClick = {
+                            }, containerColor = MaterialTheme.colorScheme.error)
+                            TvButton(label = "扫描", onClick = {
                                 scope.launch {
                                     scanning = true
                                     val result = repository.scanFolders()
@@ -355,7 +364,7 @@ fun SettingsScreen(
                                     scanning = false
                                 }
                             })
-                            TvButton(label = "刮削元数据", onClick = {
+                            TvButton(label = "刮削", onClick = {
                                 scope.launch {
                                     status = "正在刮削…"
                                     val count = repository.scrapeAllUnscraped()
@@ -416,13 +425,19 @@ fun SettingsScreen(
                                 tmdbLanguage = code
                             }
                         )
-                        TvButton(label = "重新刮削全部（覆盖现有元数据）", onClick = {
-                            scope.launch {
-                                status = "正在重新刮削…"
-                                val count = repository.scrapeAll(force = true)
-                                status = "重新刮削完成：$count 部"
-                            }
-                        })
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Spacer(Modifier.weight(1f))
+                            TvButton(label = "重新刮削全部（覆盖现有元数据）", onClick = {
+                                scope.launch {
+                                    status = "正在重新刮削…"
+                                    val count = repository.scrapeAll(force = true)
+                                    status = "重新刮削完成：$count 部"
+                                }
+                            })
+                        }
                     }
                 }
 
@@ -567,10 +582,11 @@ private fun TvButton(
     label: String,
     onClick: () -> Unit,
     primary: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    icon: (@Composable () -> Unit)? = null,
 ) {
     if (primary) {
-        PrimaryTvButton(label = label, onClick = onClick, modifier = modifier)
+        PrimaryTvButton(label = label, onClick = onClick, modifier = modifier, icon=icon)
     } else {
         SecondaryTvButton(label = label, onClick = onClick, modifier = modifier)
     }
