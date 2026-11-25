@@ -142,6 +142,7 @@ private fun HeroPage(
 
 
     Card(
+        scale = CardDefaults.scale(focusedScale = 1.02f),
         onClick = { onPlay(item) },
         modifier = Modifier.fillMaxSize(),
 ////        shape = RoundedCornerShape(16.dp)
@@ -185,8 +186,6 @@ private fun HeroPage(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
-
-
             Box(
                 modifier = Modifier.fillMaxSize().background(
                     Brush.linearGradient(
@@ -207,9 +206,6 @@ private fun HeroPage(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.Bottom
             ) {
-//                Text(interactionSource.collectIsFocusedAsState().toString())
-                Text(isFocused.toString())
-//                Text("isFocused: ${isFocused.toString()}")
                 Text(
                     text = item.displayTitle,
                     style = MaterialTheme.typography.displaySmall,

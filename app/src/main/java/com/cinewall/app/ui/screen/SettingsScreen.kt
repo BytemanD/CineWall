@@ -44,12 +44,15 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.IconButtonDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
+import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
 import com.cinewall.app.BuildConfig
 import com.cinewall.app.model.PlaybackSettings
@@ -139,104 +142,53 @@ fun SettingsScreen(
         (context as? android.app.Activity)?.recreate()
     }
 
-    Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 56.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // —— 外观：主题模式 + 主题配色置于同一张卡片 ——
+            SettingsCard(title = "主题", subtitle = "明暗 & 配色，立即生效") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SettingRadioGroupRow(
+                        label = "模式",
+                        subtitle = "明亮 / 夜间 / 跟随系统",
+                        items = listOf(
+                            "跟随系统" to ThemeMode.SYSTEM.value,
+                            "明亮" to ThemeMode.LIGHT.value,
+                            "夜间" to ThemeMode.DARK.value
+                        ),
+                        selected = themeMode,
+                        onSelect = { applyThemeMode(it) }
+                    )
 
-            Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                    .padding(horizontal = 56.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // —— 外观：主题模式 + 主题配色置于同一张卡片 ——
-                SettingsCard(title = "主题", subtitle = "明暗 & 配色，立即生效") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SettingRadioGroupRow(
-                            label = "模式",
-                            subtitle = "明亮 / 夜间 / 跟随系统",
-                            items = listOf(
-                                "跟随系统" to ThemeMode.SYSTEM.value,
-                                "明亮" to ThemeMode.LIGHT.value,
-                                "夜间" to ThemeMode.DARK.value
-                            ),
-                            selected = themeMode,
-                            onSelect = { applyThemeMode(it) }
-                        )
-
-                        SettingCardListRow(
-                            label = "配色",
-                            subtitle = "内置 TV 配色",
-                            items = ThemePalette.entries,
-                            selected = palette,
-                            onSelect = { applyPalette(it) }
-                        ) { option, selected, onClick ->
-                            Button(
-                                onClick = onClick,
-                                modifier = Modifier.weight(1f).tvTouchClick(onClick),
-                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(16.dp)),
-                                colors = ButtonDefaults.colors(
-                                    containerColor = if (selected) {
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    },
-                                    contentColor = if (selected) {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    },
-                                    focusedContainerColor = if (selected) {
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.secondaryContainer
-                                    },
-                                    focusedContentColor = if (selected) {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    },
-                                    pressedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    pressedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ),
-                                border = if (selected) ButtonDefaults.border(
-                                    border = Border(
-                                        BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
-                                        shape = RoundedCornerShape(16.dp)
+                    SettingCardListRow(
+                        label = "配色",
+                        subtitle = "内置 TV 配色",
+                        items = ThemePalette.entries,
+                        selected = palette,
+                        onSelect = { applyPalette(it) }
+                    ) { option, selected, onClick ->
+                        Card(
+                            onClick = onClick,
+                            modifier = Modifier
+                                .weight(1f)
+                                .tvTouchClick(onClick),
+                            scale = CardDefaults.scale(focusedScale = 1.02f),
+                        ) {
+                            Row(Modifier.padding(16.dp)) {
+                                Column {
+                                    Text(
+                                        option.label,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                ) else ButtonDefaults.border(),
-                                glow = ButtonDefaults.glow(
-                                    focusedGlow = Glow(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                        12.dp
-                                    )
-                                ),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 14.dp)
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Box(
-                                            Modifier.size(16.dp).clip(CircleShape)
-                                                .background(Color(option.primary)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (selected) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Check,
-                                                    contentDescription = "当前使用",
-                                                    modifier = Modifier.size(12.dp),
-                                                    tint = Color.White
-                                                )
-                                            }
-                                        }
-                                        Text(
-                                            option.label,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         option.hint,
@@ -246,244 +198,344 @@ fun SettingsScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                            }
-                        }
-                    }
-                }
-
-                // —— 播放偏好 ——
-                SettingsCard(title = "播放设置", subtitle = "字幕、连续播放与播放速度会立即用于下一次播放") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SettingSwitchRow(
-                            label = "自动加载同名字幕",
-                            subtitle = "播放视频时自动挂载同目录、同名字幕文件",
-                            checked = playback.autoSubtitle,
-                            onCheckedChange = { checked ->
-                                updatePlayback { it.copy(autoSubtitle = checked) }
-                            }
-                        )
-                        SettingSwitchRow(
-                            label = "自动播放下一集",
-                            subtitle = "剧集播完后自动切换到下一集",
-                            checked = playback.autoNext,
-                            onCheckedChange = { checked ->
-                                updatePlayback { it.copy(autoNext = checked) }
-                            }
-                        )
-                        SettingSwitchRow(
-                            label = "记住播放速度",
-                            subtitle = "把播放器里调整过的倍速保存下来",
-                            checked = playback.rememberSpeed,
-                            onCheckedChange = { checked ->
-                                updatePlayback { it.copy(rememberSpeed = checked) }
-                            }
-                        )
-                        SettingRadioGroupRow(
-                            label = "默认播放速度",
-                            subtitle = "当前 ${playback.speed}x",
-                            items = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f).map { speed ->
-                                (if (speed == 1.0f) "1x" else "${speed}x") to speed
-                            },
-                            selected = playback.speed,
-                            onSelect = { speed -> updatePlayback { it.copy(speed = speed) } }
-                        )
-                    }
-                }
-
-                // —— 媒体库：目录管理 + 扫描/刮削 ——
-                SettingsCard(title = "媒体库", subtitle = "添加本地磁盘 / U 盘目录，扫描视频并刮削元数据") {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (folders.isEmpty()) {
-                            Text(
-                                "还没有添加任何文件夹",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            folders.forEach { uri ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Spacer(Modifier.weight(1f))
+                                Box(
+                                    Modifier
+                                        .size(16.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(option.primary)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        text = FriendlyPath.folderLabel(uri),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f).padding(vertical = 4.dp)
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    val requestRemove: () -> Unit = { pendingRemoveFolder = uri }
-                                    val danger = MaterialTheme.colorScheme.error
-                                    IconButton(
-                                        onClick = requestRemove,
-                                        modifier = Modifier.tvTouchClick(requestRemove),
-                                        colors = IconButtonDefaults.colors(
-                                            containerColor = Color.Transparent,
-                                            contentColor = danger,
-                                            focusedContainerColor = danger.copy(alpha = 0.22f),
-                                            focusedContentColor = danger,
-                                            pressedContainerColor = danger.copy(alpha = 0.32f),
-                                            pressedContentColor = danger
-                                        )
-                                    ) {
+                                    if (selected) {
                                         Icon(
-                                            painter = painterResource(android.R.drawable.ic_menu_delete),
-                                            contentDescription = "移除文件夹",
-                                            tint = danger
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = "当前使用",
+                                            tint = Color.White
                                         )
                                     }
                                 }
                             }
+//                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+//                                Row(
+//                                    verticalAlignment = Alignment.CenterVertically,
+//                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+//                                ) {
+//                                    Box(
+//                                        Modifier
+//                                            .size(16.dp)
+//                                            .clip(CircleShape)
+//                                            .background(Color(option.primary)),
+//                                        contentAlignment = Alignment.Center
+//                                    ) {
+//                                        if (selected) {
+//                                            Icon(
+//                                                imageVector = Icons.Filled.Check,
+//                                                contentDescription = "当前使用",
+//                                                modifier = Modifier.size(12.dp),
+//                                                tint = Color.White
+//                                            )
+//                                        }
+//                                    }
+//                                    Text(
+//                                        option.label,
+//                                        style = MaterialTheme.typography.titleMedium,
+//                                        maxLines = 1,
+//                                        overflow = TextOverflow.Ellipsis
+//                                    )
+//                                }
+//                                Spacer(Modifier.height(4.dp))
+//                                Text(
+//                                    option.hint,
+//                                    style = MaterialTheme.typography.labelSmall,
+//                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+//                                    maxLines = 1,
+//                                    overflow = TextOverflow.Ellipsis
+//                                )
+//                            }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Spacer(Modifier.weight(1f))
-                            TvButton(label = "文件夹", primary = true, onClick = { showFolderPicker = true },
-                                icon= {
-                                    Icon(
-                                        imageVector = Icons.Filled.Add,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                })
-                            PrimaryTvButton(label = "清空", onClick = {
-                                repository.saveScanFolders(emptyList())
-                                folders = emptyList()
-                                status = "已清空文件夹列表"
-                            }, containerColor = MaterialTheme.colorScheme.error)
-                            TvButton(label = "扫描", onClick = {
-                                scope.launch {
-                                    scanning = true
-                                    val result = repository.scanFolders()
-                                    status = "扫描完成：${result.totalFound} 部"
-                                    scanning = false
-                                }
-                            })
-                            TvButton(label = "刮削", onClick = {
-                                scope.launch {
-                                    status = "正在刮削…"
-                                    val count = repository.scrapeAllUnscraped()
-                                    status = "刮削完成：$count 部"
-                                }
-                            })
-                        }
+//                        Button(
+//                            onClick = onClick,
+//                            modifier = Modifier.weight(1f).tvTouchClick(onClick),
+//                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(16.dp)),
+//                            colors = ButtonDefaults.colors(
+//                                containerColor = if (selected) {
+//                                    MaterialTheme.colorScheme.primaryContainer
+//                                } else {
+//                                    MaterialTheme.colorScheme.surfaceVariant
+//                                },
+//                                contentColor = if (selected) {
+//                                    MaterialTheme.colorScheme.onPrimaryContainer
+//                                } else {
+//                                    MaterialTheme.colorScheme.onSurface
+//                                },
+//                                focusedContainerColor = if (selected) {
+//                                    MaterialTheme.colorScheme.primaryContainer
+//                                } else {
+//                                    MaterialTheme.colorScheme.secondaryContainer
+//                                },
+//                                focusedContentColor = if (selected) {
+//                                    MaterialTheme.colorScheme.onPrimaryContainer
+//                                } else {
+//                                    MaterialTheme.colorScheme.onSurface
+//                                },
+//                                pressedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+//                                pressedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+//                            ),
+//                            border = if (selected) ButtonDefaults.border(
+//                                border = Border(
+//                                    BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+//                                    shape = RoundedCornerShape(16.dp)
+//                                )
+//                            ) else ButtonDefaults.border(),
+//                            glow = ButtonDefaults.glow(
+//                                focusedGlow = Glow(
+//                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+//                                    12.dp
+//                                )
+//                            ),
+//                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 14.dp)
+//                        ) {
+//
+//                        }
                     }
                 }
+            }
 
-                // 权限状态：浏览本地磁盘/U盘必须授予
-                SettingsCard(
-                    title = "存储权限",
-                    subtitle = "扫描本地磁盘和 U 盘中的视频需要以下权限"
-                ) {
-                    ConfigStatusRow(label = "媒体文件读取", mediaGranted)
-                    Spacer(Modifier.height(14.dp))
-                    ConfigStatusRow(label = "所有文件访问", allFilesGranted)
-
-                    if (!mediaGranted || !allFilesGranted) {
-                        Spacer(Modifier.height(14.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            if (!mediaGranted) {
-                                TvButton(
-                                    label = "授予媒体权限",
-                                    primary = true,
-                                    onClick = { permissionLauncher.launch(StoragePermissions.mediaPermissions()) }
-                                )
-                            }
-                            if (!allFilesGranted) {
-                                TvButton(
-                                    label = "授予所有文件访问",
-                                    primary = true,
-                                    onClick = {
-                                        val result = StoragePermissions.openAllFilesAccessSettings(context)
-                                        status = StoragePermissions.allFilesAccessMessage(result)
-                                    }
-                                )
-                            }
+            // —— 播放偏好 ——
+            SettingsCard(title = "播放设置", subtitle = "字幕、连续播放与播放速度会立即用于下一次播放") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SettingSwitchRow(
+                        label = "自动加载同名字幕",
+                        subtitle = "播放视频时自动挂载同目录、同名字幕文件",
+                        checked = playback.autoSubtitle,
+                        onCheckedChange = { checked ->
+                            updatePlayback { it.copy(autoSubtitle = checked) }
                         }
-                    }
-                }
-
-                SettingsCard(
-                    title = "刮削",
-                    subtitle = "元数据来源：TMDb 优先，失败时自动改用豆瓣 · 语言：${TmdbLanguage.fromCode(tmdbLanguage).label}"
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ConfigStatusRow("TMDb API Key", BuildConfig.TMDB_API_KEY.isNotBlank())
-                        ConfigStatusRow("豆瓣 API Key", repository.loadDoubanApiKey() != null)
-                        SettingRadioGroupRow(
-                            label = "TMDb 元数据语言",
-                            subtitle = "下一次刮削生效",
-                            items = TmdbLanguage.entries.map { it.label to it.code },
-                            selected = TmdbLanguage.fromCode(tmdbLanguage).code,
-                            onSelect = { code ->
-                                repository.saveTmdbLanguage(code)
-                                tmdbLanguage = code
-                            }
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Spacer(Modifier.weight(1f))
-                            TvButton(label = "重新刮削全部（覆盖现有元数据）", onClick = {
-                                scope.launch {
-                                    status = "正在重新刮削…"
-                                    val count = repository.scrapeAll(force = true)
-                                    status = "重新刮削完成：$count 部"
-                                }
-                            })
+                    )
+                    SettingSwitchRow(
+                        label = "自动播放下一集",
+                        subtitle = "剧集播完后自动切换到下一集",
+                        checked = playback.autoNext,
+                        onCheckedChange = { checked ->
+                            updatePlayback { it.copy(autoNext = checked) }
                         }
-                    }
-                }
-
-                if (status.isNotBlank()) {
-                    Text(
-                        text = status,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(bottom = 32.dp)
+                    )
+                    SettingSwitchRow(
+                        label = "记住播放速度",
+                        subtitle = "把播放器里调整过的倍速保存下来",
+                        checked = playback.rememberSpeed,
+                        onCheckedChange = { checked ->
+                            updatePlayback { it.copy(rememberSpeed = checked) }
+                        }
+                    )
+                    SettingRadioGroupRow(
+                        label = "默认播放速度",
+                        subtitle = "当前 ${playback.speed}x",
+                        items = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f).map { speed ->
+                            (if (speed == 1.0f) "1x" else "${speed}x") to speed
+                        },
+                        selected = playback.speed,
+                        onSelect = { speed -> updatePlayback { it.copy(speed = speed) } }
                     )
                 }
             }
-        }
 
-        if (pendingRemoveFolder != null) {
-            val folder = pendingRemoveFolder!!
-            ConfirmDialog(
-                title = "移除媒体目录？",
-                message = "将从 CineWall 中移除「${FriendlyPath.folderLabel(folder)}」，不会删除硬盘上的文件。",
-                confirmLabel = "移除",
-                onConfirm = {
-                    repository.removeScanFolder(folder)
-                    folders = repository.loadScanFolders()
-                    status = "已移除：${FriendlyPath.folderLabel(folder)}"
-                    pendingRemoveFolder = null
-                },
-                onDismiss = { pendingRemoveFolder = null }
-            )
-        }
-
-        if (showFolderPicker) {
-            FolderPickerDialog(
-                allFilesGranted = allFilesGranted,
-                onDismiss = { showFolderPicker = false },
-                onRequestAccess = {
-                    val result = StoragePermissions.openAllFilesAccessSettings(context)
-                    status = StoragePermissions.allFilesAccessMessage(result)
-                },
-                onPick = { path ->
-                    val current = repository.loadScanFolders().toMutableSet()
-                    if (current.add(path)) {
-                        repository.saveScanFolders(current.toList())
-                        folders = repository.loadScanFolders()
+            // —— 媒体库：目录管理 + 扫描/刮削 ——
+            SettingsCard(title = "媒体库", subtitle = "添加本地磁盘 / U 盘目录，扫描视频并刮削元数据") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (folders.isEmpty()) {
+                        Text(
+                            "还没有添加任何文件夹",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        folders.forEach { uri ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = FriendlyPath.folderLabel(uri),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(vertical = 4.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                val requestRemove: () -> Unit = { pendingRemoveFolder = uri }
+                                val danger = MaterialTheme.colorScheme.error
+                                IconButton(
+                                    onClick = requestRemove,
+                                    modifier = Modifier.tvTouchClick(requestRemove),
+                                    colors = IconButtonDefaults.colors(
+                                        containerColor = Color.Transparent,
+                                        contentColor = danger,
+                                        focusedContainerColor = danger.copy(alpha = 0.22f),
+                                        focusedContentColor = danger,
+                                        pressedContainerColor = danger.copy(alpha = 0.32f),
+                                        pressedContentColor = danger
+                                    )
+                                ) {
+                                    Icon(
+                                        painter = painterResource(android.R.drawable.ic_menu_delete),
+                                        contentDescription = "移除文件夹",
+                                        tint = danger
+                                    )
+                                }
+                            }
+                        }
                     }
-                    status = "已添加：${FriendlyPath.folderLabel(path)}"
-                    showFolderPicker = false
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Spacer(Modifier.weight(1f))
+                        TvButton(label = "文件夹", primary = true, onClick = { showFolderPicker = true },
+                            icon= {
+                                Icon(
+                                    imageVector = Icons.Filled.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            })
+                        PrimaryTvButton(label = "清空", onClick = {
+                            repository.saveScanFolders(emptyList())
+                            folders = emptyList()
+                            status = "已清空文件夹列表"
+                        }, containerColor = MaterialTheme.colorScheme.error)
+                        TvButton(label = "扫描", onClick = {
+                            scope.launch {
+                                scanning = true
+                                val result = repository.scanFolders()
+                                status = "扫描完成：${result.totalFound} 部"
+                                scanning = false
+                            }
+                        })
+                        TvButton(label = "刮削", onClick = {
+                            scope.launch {
+                                status = "正在刮削…"
+                                val count = repository.scrapeAllUnscraped()
+                                status = "刮削完成：$count 部"
+                            }
+                        })
+                    }
                 }
-            )
+            }
+
+            // 权限状态：浏览本地磁盘/U盘必须授予
+            SettingsCard(
+                title = "存储权限",
+                subtitle = "扫描本地磁盘和 U 盘中的视频需要以下权限"
+            ) {
+                ConfigStatusRow(label = "媒体文件读取", mediaGranted)
+                Spacer(Modifier.height(14.dp))
+                ConfigStatusRow(label = "所有文件访问", allFilesGranted)
+
+                if (!mediaGranted || !allFilesGranted) {
+                    Spacer(Modifier.height(14.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (!mediaGranted) {
+                            TvButton(
+                                label = "授予媒体权限",
+                                primary = true,
+                                onClick = { permissionLauncher.launch(StoragePermissions.mediaPermissions()) }
+                            )
+                        }
+                        if (!allFilesGranted) {
+                            TvButton(
+                                label = "授予所有文件访问",
+                                primary = true,
+                                onClick = {
+                                    val result = StoragePermissions.openAllFilesAccessSettings(context)
+                                    status = StoragePermissions.allFilesAccessMessage(result)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            SettingsCard(
+                title = "刮削",
+                subtitle = "元数据来源：TMDb 优先，失败时自动改用豆瓣 · 语言：${TmdbLanguage.fromCode(tmdbLanguage).label}"
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ConfigStatusRow("TMDb API Key", BuildConfig.TMDB_API_KEY.isNotBlank())
+                    ConfigStatusRow("豆瓣 API Key", repository.loadDoubanApiKey() != null)
+                    SettingRadioGroupRow(
+                        label = "TMDb 元数据语言",
+                        subtitle = "下一次刮削生效",
+                        items = TmdbLanguage.entries.map { it.label to it.code },
+                        selected = TmdbLanguage.fromCode(tmdbLanguage).code,
+                        onSelect = { code ->
+                            repository.saveTmdbLanguage(code)
+                            tmdbLanguage = code
+                        }
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(Modifier.weight(1f))
+                        TvButton(label = "重新刮削全部（覆盖现有元数据）", onClick = {
+                            scope.launch {
+                                status = "正在重新刮削…"
+                                val count = repository.scrapeAll(force = true)
+                                status = "重新刮削完成：$count 部"
+                            }
+                        })
+                    }
+                }
+            }
+
+            if (status.isNotBlank()) {
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(bottom = 32.dp)
+                )
+            }
         }
     }
+
+    if (pendingRemoveFolder != null) {
+        val folder = pendingRemoveFolder!!
+        ConfirmDialog(
+            title = "移除媒体目录？",
+            message = "将从 CineWall 中移除「${FriendlyPath.folderLabel(folder)}」，不会删除硬盘上的文件。",
+            confirmLabel = "移除",
+            onConfirm = {
+                repository.removeScanFolder(folder)
+                folders = repository.loadScanFolders()
+                status = "已移除：${FriendlyPath.folderLabel(folder)}"
+                pendingRemoveFolder = null
+            },
+            onDismiss = { pendingRemoveFolder = null }
+        )
+    }
+
+    if (showFolderPicker) {
+        FolderPickerDialog(
+            allFilesGranted = allFilesGranted,
+            onDismiss = { showFolderPicker = false },
+            onRequestAccess = {
+                val result = StoragePermissions.openAllFilesAccessSettings(context)
+                status = StoragePermissions.allFilesAccessMessage(result)
+            },
+            onPick = { path ->
+                val current = repository.loadScanFolders().toMutableSet()
+                if (current.add(path)) {
+                    repository.saveScanFolders(current.toList())
+                    folders = repository.loadScanFolders()
+                }
+                status = "已添加：${FriendlyPath.folderLabel(path)}"
+                showFolderPicker = false
+            }
+        )
+    }
+
 }
 
 @Composable
@@ -507,7 +559,7 @@ private fun SettingsCard(
             )
             if (content != null) {
                 Spacer(Modifier.height(18.dp))
-                Column(modifier = Modifier.padding(start = 8.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 8.dp)) {
                     content()
                 }
             }
@@ -519,7 +571,8 @@ private fun SettingsCard(
 @Composable
 private fun ConfigStatusRow(label: String, available: Boolean) {
     Row(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
             .padding(horizontal = 18.dp, vertical = 10.dp),

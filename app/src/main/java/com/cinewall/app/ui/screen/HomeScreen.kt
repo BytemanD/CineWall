@@ -59,10 +59,6 @@ fun HomeScreen(
 
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-//            AppHeader(
-//                currentTab = MainTabs.HOME,
-//                onNavigate = onNavigate
-//            )
             if (all.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     EmptyLibraryState(

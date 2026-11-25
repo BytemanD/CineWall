@@ -115,18 +115,17 @@ fun TvTopNavigationBar(navController: NavController) {
     val secondary = MaterialTheme.colorScheme.secondary
     // 使用 Surface 包裹 TopAppBar，设置背景色
     Surface (
-        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
 //        CineWallLogo()
 //        Spacer(Modifier.width(24.dp))
         // 使用 ScrollableTabRow 实现可滚动的顶部标签栏
         var selectedIndex = menuItems.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0);
         Row (
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(top=40.dp, bottom = 16.dp, start = 16.dp, end=16.dp),
         ) {
             CineWallLogo()
             Spacer(Modifier.width(24.dp))
-
             menuItems.forEach { item ->
                 val isSelected = currentRoute == item.route
                 val interactionSource = remember { MutableInteractionSource() }
