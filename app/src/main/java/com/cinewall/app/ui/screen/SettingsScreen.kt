@@ -141,10 +141,6 @@ fun SettingsScreen(
 
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AppHeader(
-                currentTab = MainTabs.SETTINGS,
-                onNavigate = onNavigate
-            )
 
             Column(
                 modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())

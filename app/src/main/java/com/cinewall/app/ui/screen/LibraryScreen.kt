@@ -80,10 +80,10 @@ fun LibraryScreen(
 
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AppHeader(
-                currentTab = MainTabs.LIBRARY,
-                onNavigate = onNavigate
-            )
+//            AppHeader(
+//                currentTab = MainTabs.LIBRARY,
+//                onNavigate = onNavigate
+//            )
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 34.dp, vertical = 14.dp),

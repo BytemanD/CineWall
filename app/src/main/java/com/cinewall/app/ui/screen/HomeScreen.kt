@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.cinewall.app.model.MediaItem
@@ -30,6 +31,7 @@ import com.cinewall.app.ui.components.EmptyLibraryState
 import com.cinewall.app.ui.components.HeroCarousel
 import com.cinewall.app.ui.components.MainTabs
 import com.cinewall.app.ui.components.MediaShelf
+import com.cinewall.app.ui.components.PrimaryTvButton
 import com.cinewall.app.utils.aggregateForDisplay
 import kotlinx.coroutines.launch
 
@@ -57,11 +59,10 @@ fun HomeScreen(
 
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AppHeader(
-                currentTab = MainTabs.HOME,
-                onNavigate = onNavigate
-            )
-
+//            AppHeader(
+//                currentTab = MainTabs.HOME,
+//                onNavigate = onNavigate
+//            )
             if (all.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     EmptyLibraryState(
@@ -85,7 +86,6 @@ fun HomeScreen(
                     val recent = all.sortedByDescending { it.scannedAt }.take(14)
                     val hero = (all.filter { it.backdropPath.isNotBlank() || it.posterPath.isNotBlank() }
                         .ifEmpty { all }).take(8)
-
                     HeroCarousel(items = hero, onPlay = onPlay, onDetails = onOpenDetail)
                     Spacer(Modifier.height(28.dp))
                     MediaShelf(

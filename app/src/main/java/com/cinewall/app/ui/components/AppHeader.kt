@@ -1,5 +1,10 @@
 package com.cinewall.app.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,6 +22,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.rounded.VideoLibrary
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -69,14 +76,56 @@ fun AppHeader(
     ) {
         CineWallLogo()
         Spacer(Modifier.width(24.dp))
+        primaryTabs.forEachIndexed { index, (label, route) ->
+            val interactionSource = remember { MutableInteractionSource() }
+            val isFocused by interactionSource.collectIsFocusedAsState()
+            val isSelected = selectedIndex == index
+            Button (
+                onClick = { onNavigate(route) },
+                colors = ButtonDefaults.colors(
+                    containerColor = if (isSelected) primary else if (isFocused)  primary.copy(alpha = 0.5f) else Color.Transparent ,
+                    contentColor = secondary,
+                    focusedContainerColor = primary.blend(Color.White, 0.18f),
+                    focusedContentColor = secondary,
+                    pressedContainerColor = primary.blend(Color.Black, 0.16f),
+                    pressedContentColor = secondary
+                ),
+                glow = ButtonDefaults.glow(
+                    focusedGlow = Glow(primary.copy(alpha = 0.5f), 16.dp)
+                ),
+                modifier = Modifier.focusable(interactionSource=interactionSource)
+            ) {
 
+                when (route) {
+                    MainTabs.HOME -> Icon(
+                        imageVector = Icons.Filled.Home,
+                        contentDescription = null,
+                        modifier = Modifier.size(26.dp)
+                    )
+                    MainTabs.LIBRARY -> Icon(
+                        imageVector = Icons.Rounded.VideoLibrary,
+                        contentDescription = null,
+                        modifier = Modifier.size(26.dp)
+                    )
+                    MainTabs.SETTINGS -> Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = null,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                Text(
+                    label + " $isFocused",
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1
+                )
+            }
+        }
         TabRow(
             selectedTabIndex = selectedIndex,
             modifier = Modifier.height(40.dp),
-
-            contentColor = MaterialTheme.colorScheme.error,
+            contentColor = MaterialTheme.colorScheme.secondary,
+//            containerColor = MaterialTheme.colorScheme.primary,
             indicator = { tabPositions, doesTabRowHaveFocus ->
-
                 tabPositions.getOrNull(selectedIndex)?.let { position ->
                     TabRowDefaults.PillIndicator(
                         currentTabPosition = position,
@@ -89,6 +138,10 @@ fun AppHeader(
             }
         ) {
             primaryTabs.forEachIndexed { index, (label, route) ->
+                val interactionSource = remember { MutableInteractionSource() }
+                val isFocused by interactionSource.collectIsFocusedAsState()
+                val isSelected = selectedIndex == index
+
                 Tab(
                     selected = index == selectedIndex,
                     onClick = { onNavigate(route) },
@@ -98,41 +151,56 @@ fun AppHeader(
                         // 选中项仍用主色胶囊上的可读前景色，避免次要色和主色撞色看不清
                         selectedContentColor = secondary,
                         focusedContentColor = secondary,
-                        focusedSelectedContentColor = onColor(primary),
+                        focusedSelectedContentColor = secondary,
                         inactiveContentColor = secondary,
                     ),
                     modifier = Modifier
                         .padding(horizontal = 12.dp)
-                        .tvTouchClick { onNavigate(route) }
+                        .tvTouchClick { onNavigate(route) }.focusable(interactionSource=interactionSource)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    ) {
-                        when (route) {
-                            MainTabs.HOME -> Icon(
-                                imageVector = Icons.Filled.Home,
-                                contentDescription = null,
-                                modifier = Modifier.size(26.dp)
-                            )
-                            MainTabs.LIBRARY -> Icon(
-                                imageVector = Icons.Rounded.VideoLibrary,
-                                contentDescription = null,
-                                modifier = Modifier.size(26.dp)
-                            )
-                            MainTabs.SETTINGS -> Icon(
-                                imageVector = Icons.Filled.Settings,
-                                contentDescription = null,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
+                    Button( onClick = {}, modifier = Modifier,
+                        colors = ButtonDefaults.colors(
+                        contentColor = secondary,
+                            containerColor = if (isFocused) primary.copy(alpha = 0.5f) else primary
+//                        focusedContainerColor = containerColor.blend(Color.White, 0.18f),
+//                        focusedContentColor = onColor(containerColor),
+//                        pressedContainerColor = containerColor.blend(Color.Black, 0.16f),
+//                        pressedContentColor = onColor(containerColor)
+                    )) {
                         Text(
-                            text = label,
+                            text = "$label $isFocused",
                             style = MaterialTheme.typography.titleLarge,
                             maxLines = 1
                         )
                     }
+//                    when (route) {
+//                        MainTabs.HOME -> Icon(
+//                            imageVector = Icons.Filled.Home,
+//                            contentDescription = null,
+//                            modifier = Modifier.size(26.dp)
+//                        )
+//                        MainTabs.LIBRARY -> Icon(
+//                            imageVector = Icons.Rounded.VideoLibrary,
+//                            contentDescription = null,
+//                            modifier = Modifier.size(26.dp)
+//                        )
+//                        MainTabs.SETTINGS -> Icon(
+//                            imageVector = Icons.Filled.Settings,
+//                            contentDescription = null,
+//                            modifier = Modifier.size(26.dp)
+//                        )
+//                    }
+//                    Text(
+//                        text = "$label $isFocused",
+//                        style = MaterialTheme.typography.titleLarge,
+//                        maxLines = 1
+//                    )
+//                    Row(
+//                        verticalAlignment = Alignment.CenterVertically,
+//                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+//                        modifier = Modifier.padding(vertical = 8.dp)
+//                    ) {
+//                    }
                 }
             }
         }

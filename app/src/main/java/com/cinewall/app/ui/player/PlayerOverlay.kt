@@ -4,6 +4,7 @@ package com.cinewall.app.ui.player
 
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,13 +43,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,6 +66,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.IconButtonDefaults
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Switch
 import androidx.tv.material3.Tab
 import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.TabRow
@@ -85,77 +93,38 @@ data class EpisodeOption(val id: String, val label: String, val current: Boolean
  * - 遥控器菜单键打开配置面板
  */
 /**
- * 遥控器按键处理：单独放在控制条下层，避免顶层触摸层抢走按钮焦点。
+ * 遥控器按键处理：仅用于面板打开期间的菜单键关闭面板。
+ * 播放/暂停、快进/后退已在 PlayerScreen 根层 onPreviewKeyEvent 中统一拦截。
+ *
+ * - 控制条显示时：directional 按键交给控制条按钮内部 D-Pad 导航，不拦截。
+ * - 面板打开时：directional 按键交给面板内部导航，不拦截。
  */
 @Composable
 fun PlayerKeyHandler(
     enabled: Boolean,
-    playbackKeysEnabled: Boolean,
-    onDoubleTap: (Float) -> Unit,
+    controlsVisible: Boolean,
     onMenu: () -> Unit,
     menuEnabled: Boolean = true,
-    onInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val currentDoubleTap by rememberUpdatedState(onDoubleTap)
     val currentMenu by rememberUpdatedState(onMenu)
-    val currentInteraction by rememberUpdatedState(onInteraction)
 
     Box(
-        modifier = modifier.fillMaxSize().focusable().onKeyEvent { event ->
-            if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-            val keyCode = event.key.keyCode.toInt()
+        modifier = modifier.fillMaxSize().focusable().onPreviewKeyEvent { event ->
+            Log.i("APP", "onKeyEvent: ${event.nativeKeyEvent}")
+            if (!enabled || event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+            val keyCode = event.key.nativeKeyCode
             // 菜单键无论面板是否打开都要响应：打开 / 关闭面板。
             if (menuEnabled && (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_INFO)) {
                 currentMenu()
-                currentInteraction()
-                return@onKeyEvent true
+                return@onPreviewKeyEvent true
             }
-            if (!enabled) {
-                // 面板打开期间，其它遥控器按键视为“有操作”，用于重置自动关闭计时。
-                currentInteraction()
-                return@onKeyEvent false
+            // 控制条显示时，方向键交给控制条按钮内部导航，不拦截。
+            if (controlsVisible) {
+                return@onPreviewKeyEvent false
             }
-            when (keyCode) {
-                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                    currentDoubleTap(0.5f)
-                    true
-                }
-                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    currentDoubleTap(0.9f)
-                    true
-                }
-                KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    currentDoubleTap(0.1f)
-                    true
-                }
-                // 控制条显示时不能抢 DPAD，否则焦点无法移动到播放按钮/快捷按钮。
-                KeyEvent.KEYCODE_DPAD_CENTER -> {
-                    if (playbackKeysEnabled) {
-                        currentDoubleTap(0.5f)
-                        true
-                    } else {
-                        false
-                    }
-                }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (playbackKeysEnabled) {
-                        currentDoubleTap(0.9f)
-                        true
-                    } else {
-                        false
-                    }
-                }
-                KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (playbackKeysEnabled) {
-                        currentDoubleTap(0.1f)
-                        true
-                    } else {
-                        false
-                    }
-                }
-                else -> false
-            }
+            // 控制条不显示时，非菜单按键不再消费，交给根层 onPreviewKeyEvent 处理播放控制。
+            false
         }
     )
 }
@@ -430,6 +399,7 @@ fun PlayerControls(
     scaleMode: ScaleMode,
     brightness: Float,
     volume: Float,
+    visible: Boolean,
     toast: String,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
@@ -444,7 +414,21 @@ fun PlayerControls(
     onKeySeek: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier.fillMaxSize()) {
+
+    val rootFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        if (visible) {
+            Log.i("APP", "controls visible")
+            rootFocus.requestFocus()
+            Log.i("KEY", "controls requestFocus 已调用")
+        }
+    }
+    Box(modifier.fillMaxSize()
+        .focusRequester(rootFocus)
+        .focusable()
+        .onFocusChanged {
+            Log.i("APP", "controls isFocused=${it.isFocused} hasFocus=${it.hasFocus}")
+        }) {
         // 顶部渐变遮罩
         Box(
             Modifier.fillMaxWidth().height(120.dp).align(Alignment.TopCenter).background(
@@ -601,7 +585,7 @@ private fun SeekBar(
             .background(Color.White.copy(alpha = 0.24f))
             .focusable()
             .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (event.type != KeyEventType.KeyUp) return@onKeyEvent false
                 when (event.key.keyCode.toInt()) {
                     KeyEvent.KEYCODE_DPAD_LEFT -> {
                         onKeySeek(-5000L); true
@@ -632,6 +616,7 @@ private fun SeekBar(
 @Composable
 fun SettingsPanel(
     settings: PlaybackSettings,
+    onUpdateSettings:  ((PlaybackSettings) -> PlaybackSettings) -> Unit,
     textTracks: List<TrackOption>,
     audioTracks: List<TrackOption>,
     brightness: Float,
@@ -764,6 +749,21 @@ fun SettingsPanel(
 
                         SectionTitle("音量")
                         StepperRow("音量 ${(volume * 100).roundToInt()}%", onVolumeDelta)
+                        SectionTitle("显示")
+                        SwitchRow(
+                            "系统时间",
+                            settings.showCurrentTime,
+                            onCheckedChange= { newValue ->
+                                onUpdateSettings { it.copy(showCurrentTime = newValue) }
+                            }
+                        )
+                        SwitchRow(
+                            "进度",
+                            settings.showProgressInfo,
+                            onCheckedChange= { newValue ->
+                                onUpdateSettings { it.copy(showProgressInfo = newValue) }
+                            }
+                        )
                     }
                     2 -> {
                         SectionTitle("字幕轨")
@@ -915,7 +915,19 @@ private fun StepperRow(label: String, onDelta: (Float) -> Unit) {
         GlassButton("+", { onDelta(0.05f) })
     }
 }
-
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = Color.White,
+            modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(12.dp))
+        Switch(checked, onCheckedChange)
+    }
+}
 fun formatTime(ms: Long): String {
     if (ms <= 0) return "00:00"
     val totalSeconds = ms / 1000

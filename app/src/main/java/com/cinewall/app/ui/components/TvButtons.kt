@@ -1,5 +1,7 @@
 package com.cinewall.app.ui.components
 
+import android.util.Log
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -8,10 +10,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Glow
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import com.cinewall.app.ui.theme.blend
@@ -37,8 +41,11 @@ fun PrimaryTvButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.tvTouchClick(onClick),
-        shape = ButtonDefaults.shape(shape = RoundedCornerShape(28.dp)),
+        modifier = modifier.tvTouchClick(onClick).background(
+            color = Color.Transparent,
+            shape = RoundedCornerShape(2.dp)
+        ),
+//        shape = ButtonDefaults.shape(shape = RoundedCornerShape(28.dp)),
         colors = ButtonDefaults.colors(
             containerColor = containerColor ,
             contentColor = onColor(containerColor),
@@ -73,7 +80,9 @@ fun SecondaryTvButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.tvTouchClick(onClick),
+        modifier = modifier.tvTouchClick(onClick).onFocusChanged {
+            Log.i("FOCUS", "该按钮 isFocused=${it.isFocused}")
+        },
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(28.dp)),
         colors = ButtonDefaults.colors(
             containerColor = Color.Transparent,
@@ -83,6 +92,7 @@ fun SecondaryTvButton(
             pressedContainerColor = primary.copy(alpha = 0.28f),
             pressedContentColor = primary.blend(Color.White, 0.4f)
         ),
+
         glow = ButtonDefaults.glow(
             focusedGlow = Glow(primary.copy(alpha = 0.3f), 12.dp)
         ),

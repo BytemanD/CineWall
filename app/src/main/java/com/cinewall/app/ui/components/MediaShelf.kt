@@ -23,11 +23,11 @@ import com.cinewall.app.model.MediaItem
 /** 横向海报货架：标题 + 数量 + 查看全部 + 遥控器可左右移动的海报行 */
 @Composable
 fun MediaShelf(
+    modifier: Modifier = Modifier,
     title: String,
     items: List<MediaItem>,
     onOpen: (MediaItem) -> Unit,
-    onSeeAll: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onSeeAll: (() -> Unit)? = null
 ) {
     if (items.isEmpty()) return
     Column(modifier = modifier.fillMaxWidth()) {
@@ -37,12 +37,7 @@ fun MediaShelf(
         ) {
             Text(text = title, style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface)
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = "${items.size}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
             Spacer(Modifier.weight(1f))
             if (onSeeAll != null) {
                 Surface(
@@ -50,7 +45,7 @@ fun MediaShelf(
                     modifier = Modifier.padding(horizontal = 4.dp).tvTouchClick(onSeeAll)
                 ) {
                     Text(
-                        text = "查看全部 →",
+                        text = "全部 · ${items.size} →",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -63,7 +58,7 @@ fun MediaShelf(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
         ) {
-            items(items, key = { it.id }) { item ->
+            items(items.take(14), key = { it.id }) { item ->
                 TvPosterCard(item = item, onClick = { onOpen(item) })
             }
         }

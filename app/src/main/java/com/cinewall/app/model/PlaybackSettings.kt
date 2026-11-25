@@ -20,7 +20,8 @@ data class PlaybackSettings(
     /** 画面缩放模式：FIT / FILL / ZOOM */
     val scaleMode: String = "FIT",
     /** 播放时在右上角显示当前时间 */
-    val showCurrentTime: Boolean = false,
+    val showCurrentTime: Boolean = true,
     /** 播放时在右上角显示视频进度 */
-    val showProgressInfo: Boolean = false
+    val showProgressInfo: Boolean = true
 )
+

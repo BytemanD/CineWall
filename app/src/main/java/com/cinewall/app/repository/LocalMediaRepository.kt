@@ -123,8 +123,8 @@ class LocalMediaRepository(private val context: Context, private val scope: Coro
         longPressSpeed = prefs.getFloat("${KEY_PLAYBACK_SETTINGS}_long_press_speed", 2.0f),
         seekStepSeconds = prefs.getInt("${KEY_PLAYBACK_SETTINGS}_seek_step", 10),
         scaleMode = prefs.getString("${KEY_PLAYBACK_SETTINGS}_scale_mode", "FIT") ?: "FIT",
-        showCurrentTime = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_show_time", false),
-        showProgressInfo = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_show_progress", false)
+        showCurrentTime = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_show_time", true),
+        showProgressInfo = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_show_progress", true)
     )
 
     override fun savePlaybackSettings(settings: PlaybackSettings) {

@@ -1,10 +1,22 @@
 package com.cinewall.app.ui.player
 
+import android.util.Log
 import android.content.Context
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandIn
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +37,15 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
@@ -43,14 +63,14 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import java.util.Date
-
+import androidx.lifecycle.compose.LifecycleStartEffect
 @Composable
 fun PlayerScreen(
+    modifier: Modifier = Modifier,
     mediaId: String,
     repository: MediaRepository,
     onNavigateBack: () -> Unit,
     onBrightnessChanged: (Float) -> Unit = {},
-    modifier: Modifier = Modifier
 ) {
     var currentId by remember(mediaId) { mutableStateOf(mediaId) }
     var settings by remember { mutableStateOf(repository.loadPlaybackSettings()) }
@@ -83,7 +103,9 @@ fun PlayerScreen(
     }
 
     // 播放器根布局写死纯黑，不跟随主题，避免视频周围出现白边/彩色边
-    Column(modifier = modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = modifier.fillMaxSize()
+        .background(Color.Black)
+    ) {
         val filePath = item?.filePath.orEmpty()
         if (filePath.isNotEmpty() && item != null) {
             // filePath 变化（换集）时重建播放器；改速度/字幕不会打断播放
@@ -158,6 +180,12 @@ private fun PlaybackContent(
     onSavePosition: (Long) -> Unit,
     onUpdateSettings: ((PlaybackSettings) -> PlaybackSettings) -> Unit
 ) {
+    val rootFocus = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        rootFocus.requestFocus()
+        Log.i("KEY", "************ requestFocus 已调用")
+    }
     val context = LocalContext.current
     val controller = remember { PlayerController(context) }
     val currentSettings by rememberUpdatedState(settings)
@@ -203,14 +231,23 @@ private fun PlaybackContent(
     }
 
     fun openPanel() {
+        Log.i("APP", "openPanel: ${panelOpen}")
+
         panelOpen = true
-        controlsVisible = true
+        controlsVisible = false
     }
 
     fun togglePanel() {
+        Log.i("APP", "togglePanel panelOpen: ${panelOpen}")
         if (panelOpen) panelOpen = false else openPanel()
     }
 
+    LifecycleStartEffect(Unit) {
+        controller.play()
+        onStopOrDispose {
+            controller.pause()      // 只暂停，保留进度，回前台秒续播
+        }
+    }
     DisposableEffect(Unit) {
         onDispose {
             // 离开播放器 / 切换剧集时，把最后的位置也存下来。
@@ -418,22 +455,116 @@ private fun PlaybackContent(
         if (panelOpen) controller.trackOptions(C.TRACK_TYPE_AUDIO) else emptyList()
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // 仅当面板显示时才拦截返回键
+    BackHandler(enabled = panelOpen || controlsVisible) {
+        Log.i("APP", "---------------------------------")
+        if (panelOpen) {
+            panelOpen = false
+        } else if (controlsVisible) {
+            controlsVisible = false
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .focusRequester(rootFocus)
+            .focusable()
+            .onFocusChanged {
+                Log.i("APP", "根容器 isFocused=${it.isFocused} hasFocus=${it.hasFocus}")
+            }
+//            .onPreviewKeyEvent { event ->
+//                Log.i("APP", "preview: key=${event.key} type=${event.type}")
+//                false        // ← 先返回 false，别消费，让事件继续走
+//            }
+//            .onKeyEvent { event ->
+//                Log.i("APP", "bubble:  key=${event.key} type=${event.type}")
+//                false
+//            }
+            // 遥控器按键优先在根层拦截，确保无论焦点在控制条哪个按钮上，
+            // 确定键始终暂停/播放、左右键始终前进/后退、菜单键开关面板、
+            // 方向键下开关控制条，不会被控制条按钮抢走焦点导致按键无效。
+            .onPreviewKeyEvent { event ->
+                Log.i("APP", "event: ${event.type} ${event.nativeKeyEvent}")
+                if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+                val keyCode = event.nativeKeyEvent.keyCode
+                Log.i("APP", "keycode: $keyCode")
+                // 菜单键始终开关配置面板，优先级最高
+//                if (keyCode == KeyEvent.KEYCODE_MENU) {
+//                    Log.i("APP", "openpanel")
+//                    togglePanel()
+//                    return@onKeyEvent true
+//                }
+//                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+//                    Log.i("APP", "toggle controls")
+//                    controlsVisible = !controlsVisible
+//                    return@onKeyEvent true
+//                }
+
+                // 右侧配置面板或剧集选择器打开时，方向键交给面板内部导航，不拦截
+//                if (panelOpen || episodePickerOpen) {
+//                    return@onKeyEvent false
+//                }
+
+                // 底部控制条显示时，方向键交给控制条按钮内部导航（D-Pad focus navigation），不拦截。
+                // 焦点在播放/暂停、上一集、下一集等按钮上时，确定键会触发按钮点击。
+//                if (controlsVisible) {
+//                    return@onKeyEvent false
+//                }
+
+                // 控制条和面板都不显示时，按键控制播放
+                when (keyCode) {
+                    KeyEvent.KEYCODE_MENU -> {
+                        Log.i("APP", "open panel")
+                        togglePanel()
+                        true
+                    }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        if (panelOpen || controlsVisible) {
+                             false;
+                        } else {
+                            controlsVisible = true
+                            true
+                        }
+                    }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                        if (panelOpen || controlsVisible) {
+                            return@onPreviewKeyEvent false;
+                        }
+                        controller.playPause()
+//                        controlsVisible = true
+                        true
+                    }
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (panelOpen || controlsVisible) {
+                            return@onPreviewKeyEvent false;
+                        }
+                        controller.seekBy(currentSettings.seekStepSeconds * 1000L)
+//                        controlsVisible = true
+                        true
+                    }
+                    KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (panelOpen || controlsVisible) {
+                            return@onPreviewKeyEvent false;
+                        }
+                        controller.seekBy(-currentSettings.seekStepSeconds * 1000L)
+                        controlsVisible = true
+                        true
+                    }
+                    else -> false
+                }
+            }
+    ) {
         VideoPlayer(controller = controller, modifier = Modifier.fillMaxSize())
 
-        PlayerKeyHandler(
-            enabled = !panelOpen && !episodePickerOpen,
-            playbackKeysEnabled = !controlsVisible,
-            onDoubleTap = { handleDoubleTap(it) },
-            onMenu = { togglePanel() },
-            // 面板打开时仍保留菜单键监听，用来关闭面板。
-            menuEnabled = true,
-            onInteraction = { notePanelInteraction() },
-            modifier = Modifier.matchParentSize()
-        )
-
-        if (controlsVisible) {
+        AnimatedVisibility (
+            visible = controlsVisible,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = fadeIn(),   // 默认入场：淡入
+            exit = fadeOut()    // 默认出场：淡出
+        ) {
             PlayerControls(
+                visible=controlsVisible,
                 title = title,
                 fileName = fileName,
                 position = position,
@@ -473,52 +604,24 @@ private fun PlaybackContent(
             )
         }
 
-        // 触摸手势放在最顶层：控制条显示或隐藏都能响应，只避开顶部/底部按钮区。
-        PlayerGestures(
-            enabled = !panelOpen && !episodePickerOpen,
-            seekRangeMs = duration,
-            onTap = { controlsVisible = !controlsVisible },
-            onDoubleTap = { handleDoubleTap(it) },
-            onLongPressStart = {
-                if (longPressOriginalSpeed.value == null) {
-                    // 保存“长按前的速度”，不是固定的 1.0x。
-                    longPressOriginalSpeed.value = currentSettings.speed
-                    val temp = currentSettings.longPressSpeed
-                    controller.setSpeed(temp)
-                    toast = "临时 ${if (temp == 1.0f) "1x" else "${temp}x"}"
-                }
-            },
-            onLongPressEnd = {
-                longPressOriginalSpeed.value?.let { original ->
-                    controller.setSpeed(original)
-                    longPressOriginalSpeed.value = null
-                    toast = "已恢复 ${if (original == 1.0f) "1x" else "${original}x"}"
-                }
-            },
-            onBrightnessDelta = { changeBrightness(it) },
-            onVolumeDelta = { changeVolume(it) },
-            onSeekStart = { startSeek() },
-            onSeekPreview = { previewSeek(it) },
-            onSeekEnd = { endSeek() },
-            modifier = Modifier.matchParentSize()
-        )
-
-        SeekHud(seekHud, modifier = Modifier.fillMaxSize())
-
-        AdjustmentHud(adjustment, modifier = Modifier.fillMaxSize())
-
-        PlaybackStatusOverlay(
-            currentTime = currentTimeText,
-            position = position,
-            duration = duration,
-            showCurrentTime = currentSettings.showCurrentTime,
-            showProgress = currentSettings.showProgressInfo,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        if (panelOpen) {
+        // 遥控器菜单键由 PlayerKeyHandler 负责关闭面板；
+        // 方向键在控制条显示时交给控制条按钮内部导航，面板打开时交给面板内部导航。
+//        PlayerKeyHandler(
+//            enabled = !panelOpen && !episodePickerOpen,
+//            controlsVisible = controlsVisible,
+//            onMenu = { Log.i("APP", "onMenu"); togglePanel(); },
+//            menuEnabled = true,
+//            modifier = Modifier.matchParentSize()
+//        )
+        AnimatedVisibility(
+            visible = panelOpen,
+            modifier = Modifier.align(Alignment.CenterEnd),
+            enter = slideInHorizontally(initialOffsetX = { fullWidth -> fullWidth }  ),
+            exit = slideOutHorizontally(targetOffsetX = { fullWidth -> fullWidth }  ),
+        ) {
             SettingsPanel(
                 settings = currentSettings,
+                onUpdateSettings= onUpdateSettings,
                 textTracks = textTracks,
                 audioTracks = audioTracks,
                 brightness = if (brightness < 0f) 0.5f else brightness,
@@ -587,6 +690,49 @@ private fun PlaybackContent(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+
+        // 触摸手势放在最顶层：控制条显示或隐藏都能响应，只避开顶部/底部按钮区。
+        PlayerGestures(
+            enabled = !panelOpen && !episodePickerOpen,
+            seekRangeMs = duration,
+            onTap = { controlsVisible = !controlsVisible },
+            onDoubleTap = { handleDoubleTap(it) },
+            onLongPressStart = {
+                if (longPressOriginalSpeed.value == null) {
+                    // 保存“长按前的速度”，不是固定的 1.0x。
+                    longPressOriginalSpeed.value = currentSettings.speed
+                    val temp = currentSettings.longPressSpeed
+                    controller.setSpeed(temp)
+                    toast = "临时 ${if (temp == 1.0f) "1x" else "${temp}x"}"
+                }
+            },
+            onLongPressEnd = {
+                longPressOriginalSpeed.value?.let { original ->
+                    controller.setSpeed(original)
+                    longPressOriginalSpeed.value = null
+                    toast = "已恢复 ${if (original == 1.0f) "1x" else "${original}x"}"
+                }
+            },
+            onBrightnessDelta = { changeBrightness(it) },
+            onVolumeDelta = { changeVolume(it) },
+            onSeekStart = { startSeek() },
+            onSeekPreview = { previewSeek(it) },
+            onSeekEnd = { endSeek() },
+            modifier = Modifier.matchParentSize()
+        )
+
+        SeekHud(seekHud, modifier = Modifier.fillMaxSize())
+
+        AdjustmentHud(adjustment, modifier = Modifier.fillMaxSize())
+
+//        PlaybackStatusOverlay(
+//            currentTime = currentTimeText,
+//            position = position,
+//            duration = duration,
+//            showCurrentTime = currentSettings.showCurrentTime,
+//            showProgress = currentSettings.showProgressInfo,
+//            modifier = Modifier.fillMaxSize()
+//        )
 
         if (episodePickerOpen) {
             EpisodePickerDialog(

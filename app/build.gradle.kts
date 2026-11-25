@@ -91,7 +91,7 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.2")
 
     // Compose for TV
-    implementation("androidx.tv:tv-material:$tvComposeVersion")
+    implementation("androidx.tv:tv-material:1.1.0")
     implementation("androidx.tv:tv-foundation:$tvComposeVersion")
 
     // Compose UI
