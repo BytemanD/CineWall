@@ -58,8 +58,11 @@ import com.cinewall.app.BuildConfig
 import com.cinewall.app.model.PlaybackSettings
 import com.cinewall.app.model.TmdbLanguage
 import com.cinewall.app.repository.MediaRepository
+import com.cinewall.app.ui.components.Alert
+import com.cinewall.app.ui.components.AlertType
 import com.cinewall.app.ui.components.AppHeader
 import com.cinewall.app.ui.components.ConfirmDialog
+import com.cinewall.app.ui.components.DefaultBtn
 import com.cinewall.app.ui.components.FolderPickerDialog
 import com.cinewall.app.ui.components.SettingCardListRow
 import com.cinewall.app.ui.components.MainTabs
@@ -351,35 +354,31 @@ fun SettingsScreen(
                         )
                     } else {
                         folders.forEach { uri ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
+                            val requestRemove: () -> Unit = { pendingRemoveFolder = uri }
+                            val danger = MaterialTheme.colorScheme.error
+                            Card(
+                                requestRemove,
+//                                onLongClick = { requestRemove() },
+                                scale = CardDefaults.scale(focusedScale = 1.02f),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .tvTouchClick(requestRemove),
                             ) {
-                                Text(
-                                    text = FriendlyPath.folderLabel(uri),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(vertical = 4.dp)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                val requestRemove: () -> Unit = { pendingRemoveFolder = uri }
-                                val danger = MaterialTheme.colorScheme.error
-                                IconButton(
-                                    onClick = requestRemove,
-                                    modifier = Modifier.tvTouchClick(requestRemove),
-                                    colors = IconButtonDefaults.colors(
-                                        containerColor = Color.Transparent,
-                                        contentColor = danger,
-                                        focusedContainerColor = danger.copy(alpha = 0.22f),
-                                        focusedContentColor = danger,
-                                        pressedContainerColor = danger.copy(alpha = 0.32f),
-                                        pressedContentColor = danger
-                                    )
+                                Row(
+                                    modifier = Modifier.padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Text(
+                                        text = FriendlyPath.folderLabel(uri),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(vertical = 4.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
                                     Icon(
                                         painter = painterResource(android.R.drawable.ic_menu_delete),
                                         contentDescription = "移除文件夹",
@@ -391,69 +390,43 @@ fun SettingsScreen(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Spacer(Modifier.weight(1f))
-                        TvButton(label = "文件夹", primary = true, onClick = { showFolderPicker = true },
-                            icon= {
-                                Icon(
-                                    imageVector = Icons.Filled.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            })
+                        DefaultBtn(onClick = { showFolderPicker = true },
+                            label = "文件夹",
+                            icon= Icons.Filled.Add
+                        )
                         PrimaryTvButton(label = "清空", onClick = {
                             repository.saveScanFolders(emptyList())
                             folders = emptyList()
                             status = "已清空文件夹列表"
                         }, containerColor = MaterialTheme.colorScheme.error)
-                        TvButton(label = "扫描", onClick = {
-                            scope.launch {
-                                scanning = true
-                                val result = repository.scanFolders()
-                                status = "扫描完成：${result.totalFound} 部"
-                                scanning = false
-                            }
-                        })
-                        TvButton(label = "刮削", onClick = {
-                            scope.launch {
-                                status = "正在刮削…"
-                                val count = repository.scrapeAllUnscraped()
-                                status = "刮削完成：$count 部"
-                            }
-                        })
                     }
                 }
             }
 
             // 权限状态：浏览本地磁盘/U盘必须授予
+
+            fun requestAllFilesGranted() {
+                val result = StoragePermissions.openAllFilesAccessSettings(context)
+                status = StoragePermissions.allFilesAccessMessage(result)
+            }
+
             SettingsCard(
                 title = "存储权限",
                 subtitle = "扫描本地磁盘和 U 盘中的视频需要以下权限"
             ) {
-                ConfigStatusRow(label = "媒体文件读取", mediaGranted)
+                Alert(
+                    "${ if(mediaGranted) "已" else "未" }获取媒体文件读取权限",
+                    type = if(mediaGranted) AlertType.SUCCESS else AlertType.ERROR,
+                    onClick = if (!mediaGranted) {{
+                        permissionLauncher.launch(StoragePermissions.mediaPermissions())
+                    }} else { null },
+                )
                 Spacer(Modifier.height(14.dp))
-                ConfigStatusRow(label = "所有文件访问", allFilesGranted)
-
-                if (!mediaGranted || !allFilesGranted) {
-                    Spacer(Modifier.height(14.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (!mediaGranted) {
-                            TvButton(
-                                label = "授予媒体权限",
-                                primary = true,
-                                onClick = { permissionLauncher.launch(StoragePermissions.mediaPermissions()) }
-                            )
-                        }
-                        if (!allFilesGranted) {
-                            TvButton(
-                                label = "授予所有文件访问",
-                                primary = true,
-                                onClick = {
-                                    val result = StoragePermissions.openAllFilesAccessSettings(context)
-                                    status = StoragePermissions.allFilesAccessMessage(result)
-                                }
-                            )
-                        }
-                    }
-                }
+                Alert(
+                    "${ if(allFilesGranted) "已" else "未" }获取所有文件访问",
+                    type = if(allFilesGranted) AlertType.SUCCESS else AlertType.ERROR,
+                    onClick = if (!allFilesGranted) {{ requestAllFilesGranted() }} else { null },
+                )
             }
 
             SettingsCard(

@@ -29,6 +29,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.tv.material3.Tab
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.focus.FocusRequester
@@ -71,6 +75,7 @@ import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.TabRow
 import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.Text
+import com.cinewall.app.model.GlobalSnackBar
 import com.cinewall.app.repository.MediaRepository
 import com.cinewall.app.ui.components.CineWallLogo
 import com.cinewall.app.ui.components.MainTabs
@@ -82,6 +87,8 @@ import com.cinewall.app.ui.screen.LibraryScreen
 import com.cinewall.app.ui.screen.SettingsScreen
 import com.cinewall.app.ui.theme.blend
 import com.cinewall.app.ui.theme.onColor
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.selects.select
 
 object Routes {
@@ -181,6 +188,9 @@ fun TvTopNavigationBar(navController: NavController) {
 @Composable
 fun CineWallNavHost(repository: MediaRepository) {
     val navController = rememberNavController()
+
+    val hostState = remember { SnackbarHostState() }
+
     Scaffold (
         modifier = Modifier
             .fillMaxWidth(),
@@ -232,7 +242,23 @@ fun CineWallNavHost(repository: MediaRepository) {
                     )
                 }
             }
+            SnackbarHost(
+                hostState = hostState,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+
+        // 全局唯一收集点：一条显示完/顶掉，自然串行
+        LaunchedEffect(Unit) {
+            GlobalSnackBar.requests.collect { req ->
+                val result = hostState.showSnackbar(
+                    message = req.message,
+                    actionLabel = req.actionLabel,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    req.onAction()                       // 点了"撤销"才执行
+                }
+            }
         }
     }
-
 }

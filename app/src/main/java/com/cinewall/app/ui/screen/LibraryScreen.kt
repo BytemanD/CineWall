@@ -5,11 +5,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
 //import androidx.compose.material3.SegmentedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -24,12 +28,15 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.cinewall.app.model.GlobalSnackBar
 import com.cinewall.app.model.MediaItem
 import com.cinewall.app.model.MediaType
 import com.cinewall.app.repository.MediaRepository
 import com.cinewall.app.ui.components.EmptyLibraryState
 import com.cinewall.app.ui.components.ChipGroup
+import com.cinewall.app.ui.components.DefaultBtn
 import com.cinewall.app.ui.components.MainTabs
+import com.cinewall.app.ui.components.SpacedRow
 import com.cinewall.app.ui.components.TvPosterCard
 import com.cinewall.app.utils.aggregateForDisplay
 import kotlinx.coroutines.launch
@@ -74,11 +81,36 @@ fun LibraryScreen(
         else -> source.sortedByDescending { it.year }
     }
 
+    var scanning by remember { mutableStateOf(false) }
     Box(modifier = modifier
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)) {
-        Column(modifier = modifier.padding(horizontal = 16.dp)) {
-            ChipGroup(KIND_LABELS, onChanged = { v -> kind = v }, label = "类别:")
+        Column(modifier = modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+            Spacer(Modifier.height(8.dp))
+            SpacedRow {
+                ChipGroup(KIND_LABELS, onChanged = { v -> kind = v }, label = "类别:")
+                Spacer(Modifier.weight(1f))
+                DefaultBtn(
+                    {
+                        scope.launch {
+                            GlobalSnackBar.show("开始扫描 ...")
+                            val result = repository.scanFolders()
+                            GlobalSnackBar.show("扫描完成：${result.totalFound} 部")
+                        }
+                    },
+                    label = "扫描",
+                );
+                DefaultBtn(
+                    {
+                        scope.launch {
+                            GlobalSnackBar.show("开始刮削 ...")
+                            val count = repository.scrapeAllUnscraped()
+                            GlobalSnackBar.show("刮削完成：$count 部")
+                        }
+                    },
+                    label = "刮削",
+                );
+            }
             ChipGroup(SORTS, onChanged = { v -> sort = v }, label = "排序:")
 
             if (items.isEmpty()) {

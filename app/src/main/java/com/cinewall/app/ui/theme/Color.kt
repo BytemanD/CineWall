@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import com.materialkolor.rememberDynamicColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.tv.material3.ColorScheme
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
 import androidx.tv.material3.lightColorScheme
 
@@ -203,3 +204,9 @@ val ImageScrimStart = Color(0x3307080B)
 val ImageScrimEnd = Color(0xFF07080B)
 val PosterPlaceholder = Color(0xFF1E2027)
 val RatingGold = Color(0xFFF57C00)
+
+//#, #cb34db, #, #45db34
+//#3498db, #7734db, #db3498, #db7734, #98db34, #
+var COLOR_WARNING = Color(0xFFdb7734)
+var COLOR_INFO = Color(0xFF3498db)
+var COLOR_SUCCESS = Color(0xFF34db77)
