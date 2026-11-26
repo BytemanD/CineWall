@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 
 /** 媒体仓库接口 */
 interface MediaRepository {
+    val scanning: Boolean get() = false
+    val scraping: Boolean get() = false
+
     /** 所有媒体项（按类型） */
     fun getMediaByType(type: MediaType): Flow<List<MediaItem>>
     /** 所有媒体 */

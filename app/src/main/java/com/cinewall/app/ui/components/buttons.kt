@@ -51,20 +51,7 @@ fun DefaultBtn(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     if (icon != null && label == null) {
-        return IconButton(
-            onClick = onClick,
-            enabled = enabled,
-            interactionSource = interactionSource,
-            modifier = Modifier.tvTouchClick(onClick).indication(
-                interactionSource = interactionSource,
-                ripple(bounded = true, color = Color.White),
-            ),
-            glow = ButtonDefaults.glow(
-                focusedGlow = Glow(MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), 16.dp)
-            ),
-        ) {
-            Icon(imageVector = icon, contentDescription=icon.name)
-        }
+        return IconBtn(icon, onClick, enabled=enabled);
     }
     Button(
         onClick = onClick,

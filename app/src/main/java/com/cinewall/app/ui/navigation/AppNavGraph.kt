@@ -227,10 +227,14 @@ fun CineWallNavHost(repository: MediaRepository) {
                     repository = repository,
                     onNavigate = { route -> navController.navigate(route) },
                 ) }
-                composable(Routes.DETAIL) { SettingsScreen(
-                    repository = repository,
-                    onNavigate = { route -> navController.navigate(route) },
-                ) }
+                composable(Routes.DETAIL) { entry ->
+                    DetailScreen(
+                        mediaId = entry.arguments?.getString("mediaId").orEmpty(),
+                        repository = repository,
+                        onPlay = { item -> navController.navigate(Routes.player(item.id)) },
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
                 composable(
                     route = Routes.PLAYER,
                     arguments = listOf(navArgument("mediaId") { type = NavType.StringType })

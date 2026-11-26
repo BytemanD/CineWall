@@ -22,6 +22,9 @@ data class PlaybackSettings(
     /** 播放时在右上角显示当前时间 */
     val showCurrentTime: Boolean = true,
     /** 播放时在右上角显示视频进度 */
-    val showProgressInfo: Boolean = true
+    val showProgressInfo: Boolean = true,
+
+    val autoScanAfterStarted: Boolean = false,
+    val autoScrapAfterScan: Boolean = true,
 )
 

@@ -80,8 +80,6 @@ fun LibraryScreen(
         2 -> source.sortedByDescending { it.voteAverage }
         else -> source.sortedByDescending { it.year }
     }
-
-    var scanning by remember { mutableStateOf(false) }
     Box(modifier = modifier
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)) {
@@ -93,22 +91,20 @@ fun LibraryScreen(
                 DefaultBtn(
                     {
                         scope.launch {
-                            GlobalSnackBar.show("开始扫描 ...")
-                            val result = repository.scanFolders()
-                            GlobalSnackBar.show("扫描完成：${result.totalFound} 部")
+                            repository.scanFolders()
+                            if (repository.loadPlaybackSettings().autoScrapAfterScan) {
+                                repository.scrapeAllUnscraped()
+                            }
                         }
                     },
                     label = "扫描",
+                    enabled = !repository.scanning
                 );
                 DefaultBtn(
                     {
-                        scope.launch {
-                            GlobalSnackBar.show("开始刮削 ...")
-                            val count = repository.scrapeAllUnscraped()
-                            GlobalSnackBar.show("刮削完成：$count 部")
-                        }
+                        scope.launch { repository.scrapeAllUnscraped() }
                     },
-                    label = "刮削",
+                    label = "刮削", enabled =!repository.scraping
                 );
             }
             ChipGroup(SORTS, onChanged = { v -> sort = v }, label = "排序:")

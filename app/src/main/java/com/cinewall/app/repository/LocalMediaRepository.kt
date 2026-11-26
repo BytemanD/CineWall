@@ -3,8 +3,10 @@ package com.cinewall.app.repository
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import android.util.Log
 import com.cinewall.app.BuildConfig
 import com.cinewall.app.db.AppDatabase
+import com.cinewall.app.model.GlobalSnackBar
 import com.cinewall.app.model.MediaItem
 import com.cinewall.app.model.MediaType
 import com.cinewall.app.model.PlaybackSettings
@@ -124,7 +126,9 @@ class LocalMediaRepository(private val context: Context, private val scope: Coro
         seekStepSeconds = prefs.getInt("${KEY_PLAYBACK_SETTINGS}_seek_step", 10),
         scaleMode = prefs.getString("${KEY_PLAYBACK_SETTINGS}_scale_mode", "FIT") ?: "FIT",
         showCurrentTime = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_show_time", true),
-        showProgressInfo = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_show_progress", true)
+        showProgressInfo = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_show_progress", true) ,
+        autoScanAfterStarted = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_autoScanAfterStarted", false),
+        autoScrapAfterScan = prefs.getBoolean("${KEY_PLAYBACK_SETTINGS}_autoScrapAfterScan", true),
     )
 
     override fun savePlaybackSettings(settings: PlaybackSettings) {
@@ -161,9 +165,16 @@ class LocalMediaRepository(private val context: Context, private val scope: Coro
             else -> LocalScraper
         }
     }
+    private var _scanning = false
+    private var _scraping = false
+    override val scanning: Boolean get() = _scanning
+    override val scraping: Boolean get() = _scraping
 
     override suspend fun scanFolders(): ScanResult {
+        _scanning = true
+
         val uris = loadScanFolders()
+
         if (uris.isEmpty()) return ScanResult()
 
         val allItems = mutableListOf<MediaItem>()
@@ -179,6 +190,7 @@ class LocalMediaRepository(private val context: Context, private val scope: Coro
 
         // 去重（按文件路径）
         val distinct = allItems.distinctBy { it.filePath }
+        GlobalSnackBar.show("扫描完成：${distinct.size} 部")
 
         withContext(Dispatchers.IO) {
             db.mediaDao().replaceAll(distinct)
@@ -186,13 +198,19 @@ class LocalMediaRepository(private val context: Context, private val scope: Coro
 
         val movies = distinct.count { it.mediaType == MediaType.MOVIE }
         val shows = distinct.count { it.mediaType == MediaType.TV_SHOW }
+        _scanning = false
         return ScanResult(totalFound = distinct.size, movies = movies, shows = shows)
     }
 
     override suspend fun scrapeItem(item: MediaItem): MediaItem {
+        GlobalSnackBar.show("开始刮削 「${item.displayTitle}」")
         val scraper = currentScraper()
         return withContext(Dispatchers.IO) {
             val scraped = scraper.scrape(item)
+            if (scraped.scraped)
+                GlobalSnackBar.show("「${item.displayTitle}」 刮削完成")
+            else
+                GlobalSnackBar.show("未找到匹配数据")
             db.mediaDao().insert(listOf(scraped))
             scraped
         }
@@ -200,13 +218,20 @@ class LocalMediaRepository(private val context: Context, private val scope: Coro
 
     override suspend fun scrapeAllUnscraped(): Int {
         val scraper = currentScraper()
+
         if (!scraper.isAvailable) return 0
-        return withContext(Dispatchers.IO) {
+        _scraping = true
+        val result = withContext(Dispatchers.IO) {
             val unscraped = db.mediaDao().getUnscraped().first()
+            GlobalSnackBar.show("开始刮削 ...")
+            Log.i("APP", "start scrape all unscraped")
             val scraped = scraper.scrapeAll(unscraped)
             db.mediaDao().insert(scraped)
+            GlobalSnackBar.show("刮削完成：${scraped.size} 部")
             scraped.size
         }
+        _scraping = false
+        return result
     }
 
     override suspend fun scrapeAll(force: Boolean): Int {

@@ -92,14 +92,7 @@ fun DetailScreen(
             DetailHero(
                 item = data,
                 onPlay = { onPlay(data) },
-                onScrape = {
-                    scope.launch {
-                        status = "正在刮削…"
-                        val updated = repository.scrapeItem(data)
-                        item = updated
-                        status = if (updated.scraped) "刮削完成" else "未找到匹配，保留本地信息"
-                    }
-                },
+                onScrape = { scope.launch { repository.scrapeItem(data) } },
                 onBack = onNavigateBack
             )
 

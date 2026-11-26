@@ -1,17 +1,17 @@
 package com.cinewall.app.ui.screen
 
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,18 +42,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.tv.material3.Border
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
-import androidx.tv.material3.Glow
 import androidx.tv.material3.Icon
-import androidx.tv.material3.IconButton
-import androidx.tv.material3.IconButtonDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
-import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
 import com.cinewall.app.BuildConfig
 import com.cinewall.app.model.PlaybackSettings
@@ -60,12 +54,10 @@ import com.cinewall.app.model.TmdbLanguage
 import com.cinewall.app.repository.MediaRepository
 import com.cinewall.app.ui.components.Alert
 import com.cinewall.app.ui.components.AlertType
-import com.cinewall.app.ui.components.AppHeader
 import com.cinewall.app.ui.components.ConfirmDialog
 import com.cinewall.app.ui.components.DefaultBtn
 import com.cinewall.app.ui.components.FolderPickerDialog
 import com.cinewall.app.ui.components.SettingCardListRow
-import com.cinewall.app.ui.components.MainTabs
 import com.cinewall.app.ui.components.PrimaryTvButton
 import com.cinewall.app.ui.components.SecondaryTvButton
 import com.cinewall.app.ui.components.SettingRadioGroupRow
@@ -126,6 +118,7 @@ fun SettingsScreen(
         status = "播放设置已更新"
     }
 
+    @RequiresApi(Build.VERSION_CODES.HONEYCOMB)
     fun applyThemeMode(value: Int) {
         themeMode = value
         repository.saveThemeMode(value)
@@ -138,6 +131,7 @@ fun SettingsScreen(
         (context as? android.app.Activity)?.recreate()
     }
 
+    @RequiresApi(Build.VERSION_CODES.HONEYCOMB)
     fun applyPalette(option: ThemePalette) {
         palette = option
         repository.saveThemePalette(option.id)
@@ -342,7 +336,24 @@ fun SettingsScreen(
                     )
                 }
             }
-
+            SettingsCard(title = "扫描", subtitle = "扫描配置") {
+                SettingSwitchRow(
+                    label = "启动后自动扫描",
+                    subtitle = "打开应用检查所有媒体目录是否有新文件",
+                    checked = playback.autoScanAfterStarted,
+                    onCheckedChange = { checked ->
+                        updatePlayback { it.copy(autoScanAfterStarted = checked) }
+                    }
+                )
+                SettingSwitchRow(
+                    label = "扫描后自动刮削",
+                    subtitle = "发现新视频后自动获取海报和元数据",
+                    checked = playback.autoScrapAfterScan,
+                    onCheckedChange = { checked ->
+                        updatePlayback { it.copy(autoScrapAfterScan = checked) }
+                    }
+                )
+            }
             // —— 媒体库：目录管理 + 扫描/刮削 ——
             SettingsCard(title = "媒体库", subtitle = "添加本地磁盘 / U 盘目录，扫描视频并刮削元数据") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -366,8 +377,10 @@ fun SettingsScreen(
                             ) {
                                 Row(
                                     modifier = Modifier.padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
+                                    Icon(imageVector = Icons.Filled.Folder, contentDescription="")
                                     Text(
                                         text = FriendlyPath.folderLabel(uri),
                                         style = MaterialTheme.typography.bodyMedium,
@@ -421,9 +434,8 @@ fun SettingsScreen(
                         permissionLauncher.launch(StoragePermissions.mediaPermissions())
                     }} else { null },
                 )
-                Spacer(Modifier.height(14.dp))
                 Alert(
-                    "${ if(allFilesGranted) "已" else "未" }获取所有文件访问",
+                    "${ if(allFilesGranted) "已" else "未" }获取所有文件访问权限",
                     type = if(allFilesGranted) AlertType.SUCCESS else AlertType.ERROR,
                     onClick = if (!allFilesGranted) {{ requestAllFilesGranted() }} else { null },
                 )
@@ -434,8 +446,8 @@ fun SettingsScreen(
                 subtitle = "元数据来源：TMDb 优先，失败时自动改用豆瓣 · 语言：${TmdbLanguage.fromCode(tmdbLanguage).label}"
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ConfigStatusRow("TMDb API Key", BuildConfig.TMDB_API_KEY.isNotBlank())
-                    ConfigStatusRow("豆瓣 API Key", repository.loadDoubanApiKey() != null)
+                    Alert("TMDb API", type=if (repository.loadTmdbApiKey() != null) AlertType.SUCCESS else AlertType.ERROR)
+                    Alert("豆瓣 API", type=if (repository.loadDoubanApiKey() != null) AlertType.SUCCESS else AlertType.ERROR)
                     SettingRadioGroupRow(
                         label = "TMDb 元数据语言",
                         subtitle = "下一次刮削生效",
@@ -519,7 +531,9 @@ private fun SettingsCard(
     content: (@Composable () -> Unit)? = null
 ) {
     Surface(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Column(modifier = Modifier.padding(8.dp)) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+        ) {
             Text(
                 title,
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
@@ -532,7 +546,8 @@ private fun SettingsCard(
             )
             if (content != null) {
                 Spacer(Modifier.height(18.dp))
-                Column(modifier = Modifier.padding(horizontal = 8.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     content()
                 }
             }
