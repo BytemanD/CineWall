@@ -38,6 +38,11 @@ class TmdbScraper(
     override val isAvailable: Boolean = apiKey.isNotBlank()
 
     override suspend fun scrape(item: MediaItem): MediaItem = withContext(Dispatchers.Default) {
+        Log.d(
+            "TmdbScraper",
+            "=== scrape start: id=${item.id} fileName=${item.fileName} mediaType=${item.mediaType} " +
+                "title=${item.title} season=${item.seasonNumber} episode=${item.episodeNumber}"
+        )
         try {
             when (item.mediaType) {
                 MediaType.MOVIE -> scrapeMovie(item)
@@ -53,6 +58,7 @@ class TmdbScraper(
         val wanted = TitleMatcher.cleanSearchTitle(
             item.title.ifBlank { item.fileName }
         ).ifBlank { item.fileName }
+        Log.d("TmdbScraper", "scrapeMovie: wanted=$wanted year=${item.year}")
         val match = searchBest(
             "/search/movie",
             mapOf("query" to wanted, "include_adult" to "false")
@@ -61,6 +67,7 @@ class TmdbScraper(
             item.year
         ) { it.optString("title") to it.optString("original_title") }
             ?: return notMatched(item)
+        Log.d("TmdbScraper", "scrapeMovie: match id=${match.optInt("id")} title=${match.optString("title")}")
         val movieId = match.optInt("id")
         if (movieId <= 0) return notMatched(item)
 
@@ -69,6 +76,10 @@ class TmdbScraper(
             mapOf("append_to_response" to "external_ids"),
             language
         )
+        val runtimeMinutes = detail.optInt("runtime", 0)
+        Log.d("TmdbScraper", "scrapeMovie: detail api returned title=${detail.optString("title")} " +
+            "overview=${detail.optString("overview").take(80)} poster=${detail.optString("poster_path")} " +
+            "runtime=$runtimeMinutes min")
         return item.copy(
             title = nonEmpty(detail.optString("title")) ?: item.displayTitle,
             overview = detail.optString("overview", ""),
@@ -77,6 +88,7 @@ class TmdbScraper(
             posterPath = imageUrl(detail.optString("poster_path")),
             backdropPath = imageUrl(detail.optString("backdrop_path")),
             genres = genres(detail),
+            durationMs = runtimeMinutes * 60_000L,
             scraped = true,
             externalId = movieId,
             source = "tmdb"
@@ -87,6 +99,7 @@ class TmdbScraper(
         val wanted = TitleMatcher.cleanSearchTitle(
             item.title.ifBlank { item.fileName }
         ).ifBlank { item.fileName }
+        Log.d("TmdbScraper", "scrapeTvShow: wanted=$wanted year=${item.year} season=${item.seasonNumber} episode=${item.episodeNumber}")
         val match = searchBest(
             "/search/tv",
             mapOf("query" to wanted, "include_adult" to "false")
@@ -96,6 +109,7 @@ class TmdbScraper(
         ) {
             it.optString("name") to it.optString("original_name")
         } ?: return notMatched(item)
+        Log.d("TmdbScraper", "scrapeTvShow: match id=${match.optInt("id")} name=${match.optString("name")}")
         val showId = match.optInt("id")
         if (showId <= 0) return notMatched(item)
 
@@ -104,16 +118,25 @@ class TmdbScraper(
             mapOf("append_to_response" to "external_ids"),
             language
         )
+        Log.d("TmdbScraper", "scrapeTvShow: detail api returned name=${detail.optString("name")} " +
+            "overview=${detail.optString("overview").take(80)} poster=${detail.optString("poster_path")}")
         var epTitle = item.episodeTitle
         var epOverview = ""
+        var epDurationMs = item.durationMs
         if (item.seasonNumber > 0 && item.episodeNumber > 0) {
             try {
                 val ep = fetchJson(
                     "/tv/$showId/season/${item.seasonNumber}/episode/${item.episodeNumber}",
                     language = language
                 )
+                Log.d("TmdbScraper", "scrapeTvShow: episode api returned name=${ep.optString("name")}")
                 epTitle = nonEmpty(ep.optString("name")) ?: epTitle
                 epOverview = ep.optString("overview", "")
+                val epRuntime = ep.optInt("runtime", 0)
+                if (epRuntime > 0) {
+                    epDurationMs = epRuntime * 60_000L
+                    Log.d("TmdbScraper", "scrapeTvShow: episode runtime=$epRuntime min")
+                }
             } catch (_: Exception) {
                 // 单集详情失败不影响整部剧的信息
             }
@@ -129,6 +152,7 @@ class TmdbScraper(
             posterPath = imageUrl(detail.optString("poster_path")),
             backdropPath = imageUrl(detail.optString("backdrop_path")),
             genres = genres(detail),
+            durationMs = epDurationMs,
             scraped = true,
             externalId = showId,
             source = "tmdb"
@@ -203,11 +227,13 @@ class TmdbScraper(
     ): JSONObject = withContext(Dispatchers.IO) {
         var lastError: Exception? = null
         for (host in hosts) {
-            val url = "https://$host/3$path".toHttpUrl().newBuilder().apply {
+            val urlBuilder = "https://$host/3$path".toHttpUrl().newBuilder().apply {
                 addQueryParameter("language", language)
                 params.forEach { (k, v) -> addQueryParameter(k, v) }
                 if (!bearer) addQueryParameter("api_key", apiKey)
-            }.build()
+            }
+            val url = urlBuilder.build()
+            Log.d("TmdbScraper", "TMDB API request: GET ${url.toString()} params=$params language=$language")
             val request = Request.Builder().url(url)
                 .header("Accept", "application/json")
                 .apply { if (bearer) header("Authorization", "Bearer $apiKey") }
@@ -215,6 +241,7 @@ class TmdbScraper(
             try {
                 client.newCall(request).execute().use { response ->
                     val body = response.body?.string().orEmpty()
+                    Log.d("TmdbScraper", "TMDB API response: code=${response.code} body=${body.take(500)}")
                     if (response.code == 401) throw IOException("TMDB API Key 无效")
                     if (!response.isSuccessful) throw IOException("TMDB HTTP ${response.code}")
                     if (body.isBlank()) throw IOException("TMDB 返回空数据")
@@ -227,6 +254,18 @@ class TmdbScraper(
             }
         }
         throw lastError ?: IOException("TMDB 请求失败")
+    }
+
+    /** 从 TMDb 接口获取每季总集数：seasonNumber -> episodeCount */
+    suspend fun getSeasonEpisodeCounts(tvId: Int): Map<Int, Int> {
+        val detail = fetchJson("/tv/$tvId", emptyMap(), language)
+        val seasons = detail.optJSONArray("seasons") ?: return emptyMap()
+        return (0 until seasons.length()).mapNotNull { i ->
+            val s = seasons.optJSONObject(i) ?: return@mapNotNull null
+            val seasonNum = s.optInt("season_number", 0)
+            val epCount = s.optInt("episode_count", 0)
+            if (seasonNum > 0) seasonNum to epCount else null
+        }.toMap()
     }
 
     private fun yearParam(year: Int, key: String) =

@@ -75,7 +75,7 @@ fun SettingSwitchRow(
                     .weight(1f)
                     .tvTouchClick { onCheckedChange(!checked) }
             ) {
-                Text(label, style = MaterialTheme.typography.titleMedium)
+                TitleText(label)
                 if (subtitle != null) {
                     Spacer(Modifier.height(2.dp))
                     Text(
@@ -114,7 +114,7 @@ fun <T> SettingRadioGroupRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.titleMedium)
+            TitleText(label)
             if (subtitle != null) {
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -162,7 +162,7 @@ fun <T> SettingCardListRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.titleMedium)
+            TitleText(label)
             if (subtitle != null) {
                 Spacer(Modifier.height(2.dp))
                 Text(

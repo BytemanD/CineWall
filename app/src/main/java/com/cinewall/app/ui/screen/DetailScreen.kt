@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -44,8 +46,18 @@ import com.cinewall.app.model.MediaItem
 import com.cinewall.app.model.MediaType
 import com.cinewall.app.repository.MediaRepository
 import com.cinewall.app.scanner.TvShowMatcher
+import com.cinewall.app.ui.components.BodyText
+import com.cinewall.app.ui.components.DefaultBtn
+import com.cinewall.app.ui.components.Description
+import com.cinewall.app.ui.components.HeadlineText
+import com.cinewall.app.ui.components.IconBtn
+import com.cinewall.app.ui.components.LabelText
 import com.cinewall.app.ui.components.PrimaryTvButton
 import com.cinewall.app.ui.components.SecondaryTvButton
+import com.cinewall.app.ui.components.StaticChip
+import com.cinewall.app.ui.components.TextSize
+import com.cinewall.app.ui.components.TitleText
+import com.cinewall.app.ui.components.TvCard
 import com.cinewall.app.ui.components.tvTouchClick
 import com.cinewall.app.ui.theme.PosterPlaceholder
 import com.cinewall.app.ui.theme.RatingGold
@@ -64,8 +76,23 @@ fun DetailScreen(
     var selectedSeason by remember { mutableStateOf<Int?>(null) }
     var status by remember { mutableStateOf("") }
     val all by repository.getAllMedia().collectAsState(initial = emptyList())
+    // TMDb 返回的每季总集数：seasonNumber -> episodeCount
+    var tmdbSeasonCounts by remember { mutableStateOf(emptyMap<Int, Int>()) }
 
-    LaunchedEffect(mediaId) { item = repository.getItemById(mediaId) }
+    LaunchedEffect(mediaId) {
+        item = repository.getItemById(mediaId)
+    }
+
+    // 详情页打开时，如果已刮削（有 TMDb ID），去接口查每季总集数
+    LaunchedEffect(item) {
+        val tmdbId = item?.externalId ?: 0
+        if (tmdbId > 0) {
+            scope.launch {
+                val counts = repository.getTmdbSeasonCounts(tmdbId)
+                tmdbSeasonCounts = counts
+            }
+        }
+    }
 
     val data = item
     if (data == null) {
@@ -92,32 +119,43 @@ fun DetailScreen(
             DetailHero(
                 item = data,
                 onPlay = { onPlay(data) },
-                onScrape = { scope.launch { repository.scrapeItem(data) } },
+                onScrape = {
+                        scope.launch {
+                            val result = repository.scrapeItem(data)
+                            item = result
+                            status = if (result.scraped) "\u300c${result.displayTitle}\u300d\u5267\u5275\u5b8c\u6210" else "\u672a\u627e\u5230\u5339\u914d\u6570\u636e"
+                        }
+                    },
                 onBack = onNavigateBack
             )
 
             if (data.mediaType == MediaType.TV_SHOW && episodes.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(4.dp))
                 Column(modifier = Modifier.padding(horizontal = 56.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("剧集", style = MaterialTheme.typography.headlineSmall)
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            "共 ${episodes.size} 集",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    LabelText("共 ${episodes.size} 集")
+//                    Row(verticalAlignment = Alignment.CenterVertically) {
+////                        HeadlineText("剧集")
+////                        Spacer(Modifier.width(12.dp))
+//                    }
                     Spacer(Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         seasons.forEach { season ->
-                            val label = if (season > 0) "第 $season 季" else "其他"
+                            val localCount = episodes.count { it.seasonNumber == season }
+                            val tmdbCount = tmdbSeasonCounts[season] ?: 0
+                            val label = if (season > 0) {
+                                "第 $season 季"
+                            } else {
+                                "其他 $localCount"
+                            }
                             val selectSeason = { selectedSeason = season }
                             if (season == activeSeason) {
                                 Button(
                                     onClick = selectSeason,
                                     modifier = Modifier.tvTouchClick(selectSeason)
-                                ) { Text(label) }
+                                ) { Text(label)
+                                    Spacer(Modifier.width(4.dp))
+                                    StaticChip("$localCount/$tmdbCount", rounded = true)
+                                }
                             } else {
                                 OutlinedButton(
                                     onClick = selectSeason,
@@ -159,7 +197,7 @@ private fun DetailHero(
 ) {
     val imageUrl = item.backdropPath.takeIf { it.isNotBlank() } ?: item.posterPath.takeIf { it.isNotBlank() }
 
-    Box(modifier = Modifier.fillMaxWidth().height(560.dp)) {
+    Box(modifier = Modifier.fillMaxWidth().height(460.dp)) {
         AsyncImage(
             model = imageUrl,
             contentDescription = null,
@@ -200,8 +238,10 @@ private fun DetailHero(
                     placeholder = ColorPainter(PosterPlaceholder)
                 )
             }
-            Spacer(Modifier.width(40.dp))
+            Spacer(Modifier.width(20.dp))
             Column(modifier = Modifier.weight(1f).padding(bottom = 8.dp)) {
+                StaticChip(if (item.mediaType == MediaType.TV_SHOW) "剧集" else "电影")
+                Spacer(Modifier.height(12.dp))
                 Text(
                     text = item.displayTitle,
                     color = onSurface,
@@ -215,10 +255,6 @@ private fun DetailHero(
                         Text("★ ${"%.1f".format(item.voteAverage)}", color = RatingGold)
                     }
                     if (item.year > 0) Text(item.year.toString(), color = mutedText)
-                    Text(
-                        if (item.mediaType == MediaType.TV_SHOW) "剧集" else "电影",
-                        color = mutedText
-                    )
                     if (item.genres.isNotBlank()) {
                         Text(item.genres.take(30), color = mutedText, maxLines = 1)
                     }
@@ -240,16 +276,8 @@ private fun DetailHero(
             }
         }
 
-        Surface(
-            onClick = onBack,
-            modifier = Modifier.align(Alignment.TopStart).padding(34.dp).tvTouchClick(onBack)
-        ) {
-            Text(
-                "← 返回",
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-            )
+        Box(Modifier.align(Alignment.TopStart).padding(34.dp)) {
+            IconBtn(Icons.AutoMirrored.Filled.ArrowBack, onBack)
         }
     }
 }
@@ -261,7 +289,7 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit) {
         "S${"%02d".format(episode.seasonNumber)}E${"%02d".format(episode.episodeNumber)}"
     else "第 ${episode.episodeNumber} 集"
 
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().tvTouchClick(onClick)) {
+    TvCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(width = 148.dp, height = 84.dp).clip(RoundedCornerShape(9.dp))) {
                 AsyncImage(
@@ -295,15 +323,18 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit) {
 @Composable
 private fun FileInfoCard(item: MediaItem, modifier: Modifier = Modifier) {
     Surface(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Column(modifier = Modifier.padding(22.dp)) {
-            Text("媒体信息", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(14.dp))
-            InfoRow("文件名", item.fileName)
-            InfoRow("路径", item.filePath)
-            InfoRow("大小", formatSize(item.fileSize))
-            if (item.durationMs > 0) InfoRow("时长", formatDuration(item.durationMs))
-            InfoRow("来源", item.source)
-        }
+
+        Description(
+            modifier = Modifier.padding(22.dp),
+            title = "媒体信息",
+            items = mapOf(
+                "文件名" to item.fileName,
+                "路径" to item.filePath,
+                "大小" to formatSize(item.fileSize),
+                "时长" to formatDuration(item.durationMs),
+                "来源" to item.source,
+            ),
+        )
     }
 }
 
@@ -333,6 +364,7 @@ private fun formatSize(bytes: Long): String = when {
 }
 
 private fun formatDuration(ms: Long): String {
+    if (ms < 0 ) return "-"
     val minutes = ms / 60000
     return "${minutes / 60} 小时 ${minutes % 60} 分"
 }

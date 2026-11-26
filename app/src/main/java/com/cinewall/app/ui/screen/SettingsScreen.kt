@@ -1,6 +1,8 @@
 package com.cinewall.app.ui.screen
 
+import android.annotation.SuppressLint
 import android.os.Build
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
@@ -24,8 +26,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,9 +51,10 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import com.cinewall.app.BuildConfig
 import com.cinewall.app.model.PlaybackSettings
+import com.cinewall.app.model.PosterScrollDelay
 import com.cinewall.app.model.TmdbLanguage
+import com.cinewall.app.repository.ConfigRepository
 import com.cinewall.app.repository.MediaRepository
 import com.cinewall.app.ui.components.Alert
 import com.cinewall.app.ui.components.AlertType
@@ -63,18 +67,23 @@ import com.cinewall.app.ui.components.SecondaryTvButton
 import com.cinewall.app.ui.components.SettingRadioGroupRow
 import com.cinewall.app.ui.components.SettingSwitchRow
 import com.cinewall.app.ui.components.tvTouchClick
+import com.cinewall.app.ui.screen.viewmodels.ConfigViewModel
 import com.cinewall.app.ui.theme.LocalThemePalette
 import com.cinewall.app.ui.theme.ThemeMode
 import com.cinewall.app.ui.theme.ThemePalette
 import com.cinewall.app.utils.FriendlyPath
 import com.cinewall.app.utils.StoragePermissions
 import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cinewall.app.model.GlobalSnackBar
 
+@SuppressLint("ViewModelConstructorInComposable")
 @Composable
 fun SettingsScreen(
     repository: MediaRepository,
-    onNavigate: (String) -> Unit,
-    modifier: Modifier = Modifier
+    configRepository: ConfigRepository,
+    modifier: Modifier = Modifier,
+    viewModel: ConfigViewModel  = ConfigViewModel(configRepository)
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -100,6 +109,9 @@ fun SettingsScreen(
         status = if (mediaGranted) "媒体文件读取权限已授予" else "未授予媒体文件读取权限"
     }
 
+//    var autoScanAfterStarted by remember { mutableStateOf(repository.getAutoScanAfterStarted()) }
+
+    var autoScrollDelay by remember { mutableStateOf(repository.getAutoScrollDelay()) }
     // 从系统设置页返回后自动刷新权限状态，不需要用户手动重进设置页
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         val newMedia = StoragePermissions.hasMediaPermissions(context)
@@ -138,10 +150,10 @@ fun SettingsScreen(
         status = "主题配色已设为：${option.label}"
         (context as? android.app.Activity)?.recreate()
     }
-
     Box(modifier = modifier
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)) {
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -212,90 +224,47 @@ fun SettingsScreen(
                                     }
                                 }
                             }
-//                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-//                                Row(
-//                                    verticalAlignment = Alignment.CenterVertically,
-//                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-//                                ) {
-//                                    Box(
-//                                        Modifier
-//                                            .size(16.dp)
-//                                            .clip(CircleShape)
-//                                            .background(Color(option.primary)),
-//                                        contentAlignment = Alignment.Center
-//                                    ) {
-//                                        if (selected) {
-//                                            Icon(
-//                                                imageVector = Icons.Filled.Check,
-//                                                contentDescription = "当前使用",
-//                                                modifier = Modifier.size(12.dp),
-//                                                tint = Color.White
-//                                            )
-//                                        }
-//                                    }
-//                                    Text(
-//                                        option.label,
-//                                        style = MaterialTheme.typography.titleMedium,
-//                                        maxLines = 1,
-//                                        overflow = TextOverflow.Ellipsis
-//                                    )
-//                                }
-//                                Spacer(Modifier.height(4.dp))
-//                                Text(
-//                                    option.hint,
-//                                    style = MaterialTheme.typography.labelSmall,
-//                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-//                                    maxLines = 1,
-//                                    overflow = TextOverflow.Ellipsis
-//                                )
-//                            }
                         }
-//                        Button(
-//                            onClick = onClick,
-//                            modifier = Modifier.weight(1f).tvTouchClick(onClick),
-//                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(16.dp)),
-//                            colors = ButtonDefaults.colors(
-//                                containerColor = if (selected) {
-//                                    MaterialTheme.colorScheme.primaryContainer
-//                                } else {
-//                                    MaterialTheme.colorScheme.surfaceVariant
-//                                },
-//                                contentColor = if (selected) {
-//                                    MaterialTheme.colorScheme.onPrimaryContainer
-//                                } else {
-//                                    MaterialTheme.colorScheme.onSurface
-//                                },
-//                                focusedContainerColor = if (selected) {
-//                                    MaterialTheme.colorScheme.primaryContainer
-//                                } else {
-//                                    MaterialTheme.colorScheme.secondaryContainer
-//                                },
-//                                focusedContentColor = if (selected) {
-//                                    MaterialTheme.colorScheme.onPrimaryContainer
-//                                } else {
-//                                    MaterialTheme.colorScheme.onSurface
-//                                },
-//                                pressedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-//                                pressedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-//                            ),
-//                            border = if (selected) ButtonDefaults.border(
-//                                border = Border(
-//                                    BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
-//                                    shape = RoundedCornerShape(16.dp)
-//                                )
-//                            ) else ButtonDefaults.border(),
-//                            glow = ButtonDefaults.glow(
-//                                focusedGlow = Glow(
-//                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-//                                    12.dp
-//                                )
-//                            ),
-//                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 14.dp)
-//                        ) {
-//
-//                        }
                     }
                 }
+            }
+
+            SettingsCard(title = "应用", subtitle = "应用配置") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SettingRadioGroupRow(
+                        label = "轮播间隔",
+                        subtitle = "海报墙轮播间隔时间",
+                        items = PosterScrollDelay.entries.map { it.label to it.value },
+                        selected = PosterScrollDelay.fromValue(autoScrollDelay).value,
+                        onSelect = { v ->
+                            repository.setAutoScrollDelay(v)
+                            autoScrollDelay = v
+                        }
+                    )
+                }
+                val autoSubtitle by viewModel.autoSubtitle.collectAsStateWithLifecycle()
+                val autoScrapAfterScan by viewModel.autoScrapAfterScan.collectAsStateWithLifecycle()
+                SettingSwitchRow(
+                    label = "启动后自动扫描",
+                    subtitle = "打开应用检查所有媒体目录是否有新文件",
+                    checked = autoSubtitle,
+                    onCheckedChange = { checked ->
+                        Log.i("XXX", "setAutoScanAfterStarted: $checked")
+//                        autoScanAfterStarted = !autoScanAfterStarted
+                        viewModel.updateAutoSubtitle(checked);
+                        Log.i("XXX", "setAutoScanAfterStarted: $autoSubtitle")
+
+                    }
+                )
+                SettingSwitchRow(
+                    label = "扫描后自动刮削",
+                    subtitle = "发现新视频后自动获取海报和元数据",
+                    checked = autoScrapAfterScan,
+                    onCheckedChange = { checked ->
+                        viewModel.updateAutoScrapAfterScan(checked)
+                    }
+                )
+
             }
 
             // —— 播放偏好 ——
@@ -336,24 +305,6 @@ fun SettingsScreen(
                     )
                 }
             }
-            SettingsCard(title = "扫描", subtitle = "扫描配置") {
-                SettingSwitchRow(
-                    label = "启动后自动扫描",
-                    subtitle = "打开应用检查所有媒体目录是否有新文件",
-                    checked = playback.autoScanAfterStarted,
-                    onCheckedChange = { checked ->
-                        updatePlayback { it.copy(autoScanAfterStarted = checked) }
-                    }
-                )
-                SettingSwitchRow(
-                    label = "扫描后自动刮削",
-                    subtitle = "发现新视频后自动获取海报和元数据",
-                    checked = playback.autoScrapAfterScan,
-                    onCheckedChange = { checked ->
-                        updatePlayback { it.copy(autoScrapAfterScan = checked) }
-                    }
-                )
-            }
             // —— 媒体库：目录管理 + 扫描/刮削 ——
             SettingsCard(title = "媒体库", subtitle = "添加本地磁盘 / U 盘目录，扫描视频并刮削元数据") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -380,7 +331,7 @@ fun SettingsScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
-                                    Icon(imageVector = Icons.Filled.Folder, contentDescription="")
+                                    Icon(imageVector = Icons.Outlined.Folder, contentDescription="")
                                     Text(
                                         text = FriendlyPath.folderLabel(uri),
                                         style = MaterialTheme.typography.bodyMedium,

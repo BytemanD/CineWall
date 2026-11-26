@@ -57,7 +57,9 @@ fun HomeScreen(
     val shows = remember(showItems) { showItems.aggregateForDisplay() }
     val folders by remember { mutableStateOf(repository.loadScanFolders()) }
 
-    Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(
+        horizontal = 24.dp,
+    )) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (all.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -77,12 +79,12 @@ fun HomeScreen(
             } else {
                 Column(
                     modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                        .padding(horizontal = 34.dp, vertical = 18.dp)
                 ) {
                     val recent = all.sortedByDescending { it.scannedAt }.take(14)
                     val hero = (all.filter { it.backdropPath.isNotBlank() || it.posterPath.isNotBlank() }
                         .ifEmpty { all }).take(8)
-                    HeroCarousel(items = hero, onPlay = onPlay, onDetails = onOpenDetail)
+                    HeroCarousel(items = hero, onPlay = onPlay, onDetails = onOpenDetail,
+                        autoScrollDelay = repository.getAutoScrollDelay())
                     Spacer(Modifier.height(28.dp))
                     MediaShelf(
                         title = "最近添加",

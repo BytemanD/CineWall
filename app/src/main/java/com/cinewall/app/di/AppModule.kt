@@ -1,6 +1,7 @@
 package com.cinewall.app.di
 
 import android.content.Context
+import com.cinewall.app.repository.ConfigRepository
 import com.cinewall.app.repository.LocalMediaRepository
 import com.cinewall.app.repository.MediaRepository
 import kotlinx.coroutines.CoroutineScope

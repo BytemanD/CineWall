@@ -1,7 +1,5 @@
 package com.cinewall.app.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -173,34 +171,6 @@ fun AppHeader(
                             maxLines = 1
                         )
                     }
-//                    when (route) {
-//                        MainTabs.HOME -> Icon(
-//                            imageVector = Icons.Filled.Home,
-//                            contentDescription = null,
-//                            modifier = Modifier.size(26.dp)
-//                        )
-//                        MainTabs.LIBRARY -> Icon(
-//                            imageVector = Icons.Rounded.VideoLibrary,
-//                            contentDescription = null,
-//                            modifier = Modifier.size(26.dp)
-//                        )
-//                        MainTabs.SETTINGS -> Icon(
-//                            imageVector = Icons.Filled.Settings,
-//                            contentDescription = null,
-//                            modifier = Modifier.size(26.dp)
-//                        )
-//                    }
-//                    Text(
-//                        text = "$label $isFocused",
-//                        style = MaterialTheme.typography.titleLarge,
-//                        maxLines = 1
-//                    )
-//                    Row(
-//                        verticalAlignment = Alignment.CenterVertically,
-//                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-//                        modifier = Modifier.padding(vertical = 8.dp)
-//                    ) {
-//                    }
                 }
             }
         }

@@ -111,6 +111,12 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
+    // DataStore
+    implementation("androidx.datastore:datastore-core:1.1.0")
+    implementation("androidx.datastore:datastore-preferences-core:1.1.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.0")
+//    implementation("androidx.datastore:datastore-preferences-rxjava3:1.3.0")
+
     // ExoPlayer
     implementation("com.google.android.exoplayer:exoplayer:$exoVersion")
     implementation("com.google.android.exoplayer:extension-okhttp:$exoVersion")

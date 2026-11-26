@@ -8,12 +8,9 @@ import android.os.Looper
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkOut
 import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -24,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -33,8 +29,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -43,7 +41,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
@@ -64,6 +61,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import java.util.Date
 import androidx.lifecycle.compose.LifecycleStartEffect
+import kotlinx.coroutines.launch
+
 @Composable
 fun PlayerScreen(
     modifier: Modifier = Modifier,
@@ -72,6 +71,10 @@ fun PlayerScreen(
     onNavigateBack: () -> Unit,
     onBrightnessChanged: (Float) -> Unit = {},
 ) {
+    val focusRequester = remember { FocusRequester() }
+
+    val scope = rememberCoroutineScope()
+
     var currentId by remember(mediaId) { mutableStateOf(mediaId) }
     var settings by remember { mutableStateOf(repository.loadPlaybackSettings()) }
     val all by repository.getAllMedia().collectAsState(initial = emptyList())
@@ -146,7 +149,9 @@ fun PlayerScreen(
             }
         } else {
             Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
+                modifier = Modifier.fillMaxSize().padding(24.dp)
+                    .focusRequester(focusRequester)
+                    .focusable(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -158,6 +163,15 @@ fun PlayerScreen(
                 Button(onClick = onNavigateBack, modifier = Modifier.tvTouchClick(onNavigateBack)) {
                     Text("返回")
                 }
+            }
+        }
+    }
+    // 3. 在页面进入时自动请求焦点
+    LaunchedEffect(Unit) {
+        // 核心防坑：延迟一帧再请求焦点，防止组件尚未完成组合导致崩溃或焦点丢失
+        scope.launch {
+            withFrameNanos {
+                focusRequester.requestFocus()
             }
         }
     }
@@ -465,6 +479,14 @@ private fun PlaybackContent(
         }
     }
 
+    LaunchedEffect(Unit) {
+//        if (visible) {
+//        }
+        Log.i("APP", "controls visible")
+        rootFocus.requestFocus()
+        Log.i("KEY", "controls requestFocus 已调用")
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -485,68 +507,41 @@ private fun PlaybackContent(
             // 确定键始终暂停/播放、左右键始终前进/后退、菜单键开关面板、
             // 方向键下开关控制条，不会被控制条按钮抢走焦点导致按键无效。
             .onPreviewKeyEvent { event ->
-                Log.i("APP", "event: ${event.type} ${event.nativeKeyEvent}")
-                if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
-                val keyCode = event.nativeKeyEvent.keyCode
-                Log.i("APP", "keycode: $keyCode")
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                val keyCode = event.key.keyCode.toInt()
+
                 // 菜单键始终开关配置面板，优先级最高
-//                if (keyCode == KeyEvent.KEYCODE_MENU) {
-//                    Log.i("APP", "openpanel")
-//                    togglePanel()
-//                    return@onKeyEvent true
-//                }
-//                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-//                    Log.i("APP", "toggle controls")
-//                    controlsVisible = !controlsVisible
-//                    return@onKeyEvent true
-//                }
+                if (keyCode == KeyEvent.KEYCODE_MENU) {
+                    togglePanel()
+                    return@onPreviewKeyEvent true
+                }
 
                 // 右侧配置面板或剧集选择器打开时，方向键交给面板内部导航，不拦截
-//                if (panelOpen || episodePickerOpen) {
-//                    return@onKeyEvent false
-//                }
+                if (panelOpen || episodePickerOpen) {
+                    return@onPreviewKeyEvent false
+                }
 
-                // 底部控制条显示时，方向键交给控制条按钮内部导航（D-Pad focus navigation），不拦截。
+                // 底部控制条显示时，方向键交给控制条按钮内部 D-Pad 导航，不拦截。
                 // 焦点在播放/暂停、上一集、下一集等按钮上时，确定键会触发按钮点击。
-//                if (controlsVisible) {
-//                    return@onKeyEvent false
-//                }
+                if (controlsVisible) {
+                    return@onPreviewKeyEvent false
+                }
 
                 // 控制条和面板都不显示时，按键控制播放
                 when (keyCode) {
-                    KeyEvent.KEYCODE_MENU -> {
-                        Log.i("APP", "open panel")
-                        togglePanel()
-                        true
-                    }
                     KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        if (panelOpen || controlsVisible) {
-                             false;
-                        } else {
-                            controlsVisible = true
-                            true
-                        }
+                        controlsVisible = true
+                        true
                     }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                        if (panelOpen || controlsVisible) {
-                            return@onPreviewKeyEvent false;
-                        }
                         controller.playPause()
-//                        controlsVisible = true
                         true
                     }
-                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        if (panelOpen || controlsVisible) {
-                            return@onPreviewKeyEvent false;
-                        }
+                    KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                         controller.seekBy(currentSettings.seekStepSeconds * 1000L)
-//                        controlsVisible = true
                         true
                     }
                     KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_DPAD_LEFT -> {
-                        if (panelOpen || controlsVisible) {
-                            return@onPreviewKeyEvent false;
-                        }
                         controller.seekBy(-currentSettings.seekStepSeconds * 1000L)
                         controlsVisible = true
                         true
@@ -695,7 +690,13 @@ private fun PlaybackContent(
         PlayerGestures(
             enabled = !panelOpen && !episodePickerOpen,
             seekRangeMs = duration,
-            onTap = { controlsVisible = !controlsVisible },
+            onTap = {
+                if (panelOpen) {
+                    panelOpen = false
+                } else {
+                    controlsVisible = !controlsVisible
+                }
+            },
             onDoubleTap = { handleDoubleTap(it) },
             onLongPressStart = {
                 if (longPressOriginalSpeed.value == null) {
@@ -725,14 +726,14 @@ private fun PlaybackContent(
 
         AdjustmentHud(adjustment, modifier = Modifier.fillMaxSize())
 
-//        PlaybackStatusOverlay(
-//            currentTime = currentTimeText,
-//            position = position,
-//            duration = duration,
-//            showCurrentTime = currentSettings.showCurrentTime,
-//            showProgress = currentSettings.showProgressInfo,
-//            modifier = Modifier.fillMaxSize()
-//        )
+        PlaybackStatusOverlay(
+            currentTime = currentTimeText,
+            position = position,
+            duration = duration,
+            showCurrentTime = currentSettings.showCurrentTime,
+            showProgress = currentSettings.showProgressInfo,
+            modifier = Modifier.fillMaxSize()
+        )
 
         if (episodePickerOpen) {
             EpisodePickerDialog(

@@ -57,7 +57,9 @@ data class MediaItem(
     /** 外部 ID（如 TMDb ID） */
     val externalId: Int = 0,
     /** 外部数据源（tmdb / local / none） */
-    val source: String = "local"
+    val source: String = "local",
+    /** 文件是否仍存在（扫描时未命中则标记为 false，页面不显示；下次扫描命中则恢复） */
+    val isAvailable: Boolean = true
 ) {
     companion object {
         val VIDEO_EXTENSIONS = setOf(

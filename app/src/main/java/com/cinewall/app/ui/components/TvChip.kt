@@ -1,5 +1,6 @@
 package com.cinewall.app.ui.components
 
+import androidx.tv.material3.Surface
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
@@ -8,17 +9,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
-import androidx.tv.material3.FilterChipDefaults
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.SelectableChipColors
 import androidx.tv.material3.Text
 
 
@@ -59,3 +62,32 @@ fun ChipGroup(
         }
     }
 }
+
+@Composable
+fun StaticChip(
+    text: String,
+    modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
+    rounded: Boolean = false,
+) {
+    Surface(
+        modifier = modifier,
+        shape =  when (rounded) {
+            true -> RoundedCornerShape(percent = 50)
+            false -> RoundedCornerShape(4.dp)
+        },
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 10.dp, vertical = 4.dp), // TV 端内边距要足够，保证文字不贴边
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (leadingIcon != null) {
+                Icon(imageVector = leadingIcon, contentDescription = null)
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            LabelText(text)
+        }
+    }
+}
+

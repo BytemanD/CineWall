@@ -67,4 +67,14 @@ interface MediaRepository {
     suspend fun scrapeAllUnscraped(): Int
     /** 刮削全部条目；force=true 时会覆盖已有刮削结果（用于修正确认刮错的数据） */
     suspend fun scrapeAll(force: Boolean = false): Int
+    /** 从 TMDb 获取该剧集每季总集数：seasonNumber -> episodeCount */
+    suspend fun getTmdbSeasonCounts(tmdbId: Int): Map<Int, Int>
+
+    fun getAutoScanAfterStarted(): Boolean
+    fun setAutoScanAfterStarted(value: Boolean)
+
+
+    fun getAutoScrollDelay(): Int
+    fun setAutoScrollDelay(value: Int)
+
 }

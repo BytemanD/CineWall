@@ -7,6 +7,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -33,9 +34,11 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -57,6 +60,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
@@ -70,6 +74,7 @@ import androidx.tv.material3.Switch
 import androidx.tv.material3.Tab
 import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.TabRow
+import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.Text
 import com.cinewall.app.model.LONG_PRESS_SPEED_OPTIONS
 import com.cinewall.app.model.PlaybackSettings
@@ -417,15 +422,16 @@ fun PlayerControls(
 
     val rootFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
-        if (visible) {
-            Log.i("APP", "controls visible")
-            rootFocus.requestFocus()
-            Log.i("KEY", "controls requestFocus 已调用")
-        }
+//        if (visible) {
+//        }
+        Log.i("APP", "controls visible")
+        rootFocus.requestFocus()
+        Log.i("KEY", "controls requestFocus 已调用")
     }
+
     Box(modifier.fillMaxSize()
-        .focusRequester(rootFocus)
-        .focusable()
+//        .focusRequester(rootFocus)
+//        .focusable()
         .onFocusChanged {
             Log.i("APP", "controls isFocused=${it.isFocused} hasFocus=${it.hasFocus}")
         }) {
@@ -492,11 +498,15 @@ fun PlayerControls(
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusGroup(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                GlassButton(if (isPlaying) "❚❚ 暂停" else "▶ 播放", onTogglePlay)
+                GlassButton(
+                    if (isPlaying) "❚❚ 暂停" else "▶ 播放",
+                    onTogglePlay,
+                    modifier.focusRequester(focusRequester = rootFocus)
+                )
                 GlassButton("⏮ 上一集", onPrevious)
                 GlassButton("⏭ 下一集", onNext)
                 if (episodes.isNotEmpty()) {
@@ -639,40 +649,48 @@ fun SettingsPanel(
     modifier: Modifier = Modifier
 ) {
     val tabTitles = listOf("播放", "画面声音", "字幕", "音轨")
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
+    val rootFocus = remember { FocusRequester() }
+//    LaunchedEffect(Unit) {
+//        rootFocus.requestFocus()
+//    }
     Box(
         modifier = modifier
             .fillMaxSize()
             .pointerInput(Unit) {
+                Log.i("PLAYER", "panel pointer")
                 detectTapGestures { offset ->
+                    val panelEdgeX = size.width - 460.dp.toPx();
+                    Log.i("PLAYER", "panel pointer ${offset.x}, ${panelEdgeX}")
                     // 点击面板左侧（面板外区域）即关闭。
-                    val panelWidth = 460.dp.toPx()
-                    if (offset.x < size.width - panelWidth) onClose()
+                    if (offset.x < panelEdgeX) onClose()
                 }
             },
         contentAlignment = Alignment.CenterEnd
     ) {
         Column(
             modifier = Modifier.fillMaxHeight().width(460.dp)
-                .background(Color.Black.copy(alpha = 0.5f))
-                .padding(20.dp),
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "播放设置",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White
-                )
-            }
+            Row(verticalAlignment = Alignment.CenterVertically) {}
 
             TabRow(
                 selectedTabIndex = selectedTab,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                containerColor = Color.Transparent
+                modifier = Modifier.fillMaxWidth().height(36.dp),
             ) {
                 tabTitles.forEachIndexed { index, title ->
+                    var tabModifier = Modifier.tvTouchClick {
+                        onInteract()
+                        selectedTab = index
+                    }
+                    if (index == 0) {
+                        tabModifier = tabModifier.focusRequester(rootFocus)
+                        LaunchedEffect(Unit) {
+                            rootFocus.requestFocus()
+                        }
+                    }
                     Tab(
                         selected = index == selectedTab,
                         onClick = {
@@ -681,15 +699,16 @@ fun SettingsPanel(
                         },
                         onFocus = { onInteract() },
                         // 面板是半透明黑背景，未选中 Tab 不能跟随亮色主题的深色 onSurface。
-                        colors = TabDefaults.pillIndicatorTabColors(
-                            contentColor = Color.White,
-                            inactiveContentColor = Color.White.copy(alpha = 0.72f),
-                            focusedContentColor = Color.White
-                        ),
-                        modifier = Modifier.tvTouchClick {
-                            onInteract()
-                            selectedTab = index
-                        }
+//                        colors = TabDefaults.underlinedIndicatorTabColors(
+//                            contentColor = Color.White,
+//                            selectedContentColor = MaterialTheme.colorScheme.primary,
+//                            focusedContentColor = MaterialTheme.colorScheme.primary,
+//                            inactiveContentColor = Color.Red
+////                            contentColor = Color.White,
+////                            inactiveContentColor = Color.White.copy(alpha = 0.72f),
+////                            focusedContentColor = Color.White
+//                        ),
+                        modifier = tabModifier
                     ) {
                         Text(
                             title,
@@ -699,9 +718,13 @@ fun SettingsPanel(
                     }
                 }
             }
-
+            HorizontalDivider(
+//                thickness = 2.dp,               // 控制粗细
+//                color = Color.Gray,             // 控制颜色
+//                modifier = Modifier.padding(horizontal = 16.dp) // 控制边距
+            )
             Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().padding(8.dp).weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 when (selectedTab) {

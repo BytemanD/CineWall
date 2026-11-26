@@ -31,6 +31,7 @@ import androidx.tv.material3.Text
 import com.cinewall.app.model.GlobalSnackBar
 import com.cinewall.app.model.MediaItem
 import com.cinewall.app.model.MediaType
+import com.cinewall.app.repository.ConfigRepository
 import com.cinewall.app.repository.MediaRepository
 import com.cinewall.app.ui.components.EmptyLibraryState
 import com.cinewall.app.ui.components.ChipGroup
@@ -39,6 +40,7 @@ import com.cinewall.app.ui.components.MainTabs
 import com.cinewall.app.ui.components.SpacedRow
 import com.cinewall.app.ui.components.TvPosterCard
 import com.cinewall.app.utils.aggregateForDisplay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private val KINDS = listOf("all", "movies", "shows")
@@ -49,6 +51,7 @@ private val SORTS = listOf("最近添加", "标题", "评分", "年份")
 @Composable
 fun LibraryScreen(
     repository: MediaRepository,
+    configRepository: ConfigRepository,
     initialKind: String = "all",
     onOpenDetail: (MediaItem) -> Unit,
     onNavigate: (String) -> Unit,
@@ -92,7 +95,7 @@ fun LibraryScreen(
                     {
                         scope.launch {
                             repository.scanFolders()
-                            if (repository.loadPlaybackSettings().autoScrapAfterScan) {
+                            if (configRepository.autoScrapAfterScan.get().first()) {
                                 repository.scrapeAllUnscraped()
                             }
                         }

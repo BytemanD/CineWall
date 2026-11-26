@@ -39,7 +39,8 @@ class DoubanScraper(private val apiKey: String) : MetadataScraper {
         val overview: String?,
         val genres: List<String>,
         val aka: List<String>,
-        val episodeCount: Int?
+        val episodeCount: Int?,
+        val durationMs: Long = 0L
     ) {
         fun mergedWith(other: Candidate) = copy(
             year = year ?: other.year,
@@ -54,12 +55,19 @@ class DoubanScraper(private val apiKey: String) : MetadataScraper {
     }
 
     override suspend fun scrape(item: MediaItem): MediaItem = withContext(Dispatchers.Default) {
+        Log.d(
+            "DoubanScraper",
+            "=== scrape start: id=${item.id} fileName=${item.fileName} mediaType=${item.mediaType} " +
+                "title=${item.title} season=${item.seasonNumber} episode=${item.episodeNumber}"
+        )
         try {
             val title = TitleMatcher.cleanSearchTitle(
                 item.title.ifBlank { item.fileName }
             ).ifBlank { item.fileName }
+            Log.d("DoubanScraper", "scrape: cleaned title=$title year=${item.year}")
             val candidates = search(title, item.year)
                 .filter { if (item.mediaType == MediaType.MOVIE) it.subtype != "tv" else it.subtype == "tv" }
+            Log.d("DoubanScraper", "scrape: search candidates count=${candidates.size}")
             val match = best(candidates, title, item.year) ?: return@withContext item.copy(
                 scraped = false,
                 source = "douban"
@@ -70,6 +78,7 @@ class DoubanScraper(private val apiKey: String) : MetadataScraper {
                 Log.w("DoubanScraper", "subject(${match.id}) failed", e)
                 match
             }
+            Log.d("DoubanScraper", "scrape: matched id=${details.id} title=${details.title} rating=${details.rating}")
             item.copy(
                 title = nonEmpty(details.title) ?: title,
                 year = details.year ?: item.year,
@@ -78,6 +87,7 @@ class DoubanScraper(private val apiKey: String) : MetadataScraper {
                 posterPath = details.poster.orEmpty(),
                 backdropPath = details.backdrop.orEmpty(),
                 genres = details.genres.joinToString(","),
+                durationMs = if (details.durationMs > 0) details.durationMs else item.durationMs,
                 scraped = true,
                 externalId = details.id.toIntOrNull() ?: 0,
                 source = "douban"
@@ -104,10 +114,12 @@ class DoubanScraper(private val apiKey: String) : MetadataScraper {
 
     private suspend fun post(path: String, params: Map<String, String> = emptyMap()): JSONObject =
         withContext(Dispatchers.IO) {
-            val url = "$DOUBAN_HOST$path".toHttpUrl().newBuilder().apply {
+            val urlBuilder = "$DOUBAN_HOST$path".toHttpUrl().newBuilder().apply {
                 addQueryParameter("apikey", apiKey)
                 params.forEach { (k, v) -> addQueryParameter(k, v) }
-            }.build()
+            }
+            val url = urlBuilder.build()
+            Log.d("DoubanScraper", "Douban API request: POST ${url.toString()} params=$params")
             val body = FormBody.Builder().add("apikey", apiKey).build()
             val request = Request.Builder().url(url).post(body)
                 .header("Accept", "application/json")
@@ -118,6 +130,7 @@ class DoubanScraper(private val apiKey: String) : MetadataScraper {
                 try {
                     client.newCall(request).execute().use { response ->
                         val text = response.body?.string().orEmpty()
+                        Log.d("DoubanScraper", "Douban API response: code=${response.code} body=${text.take(500)}")
                         if (response.code == 401 || response.code == 403) {
                             throw IOException("豆瓣 API Key 无效")
                         }
@@ -137,6 +150,11 @@ class DoubanScraper(private val apiKey: String) : MetadataScraper {
     private fun parse(json: JSONObject): Candidate {
         val rating = json.optJSONObject("rating")
         val images = json.optJSONObject("images")
+        val durations = json.optJSONArray("durations")
+        val durationMs = if (durations != null && durations.length() > 0) {
+            durations.optInt(0, 0) * 60_000L
+        } else 0L
+        Log.d("DoubanScraper", "parse: id=${json.opt("id")} durationMs=$durationMs")
         return Candidate(
             id = text(json.opt("id")),
             title = text(json.opt("title")),
@@ -149,7 +167,8 @@ class DoubanScraper(private val apiKey: String) : MetadataScraper {
             overview = text(json.opt("summary")).takeIf { it.isNotBlank() },
             genres = names(json.optJSONArray("genres")),
             aka = names(json.optJSONArray("aka")),
-            episodeCount = json.opt("episodes_count")?.toString()?.toIntOrNull()
+            episodeCount = json.opt("episodes_count")?.toString()?.toIntOrNull(),
+            durationMs = durationMs
         )
     }
 
